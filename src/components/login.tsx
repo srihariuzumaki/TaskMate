@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Github, Mail } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,14 +13,16 @@ import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, Github
 export function LoginComponent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const router = useRouter();
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // Handle successful login (e.g., redirect to dashboard)
+      router.push('/dashboard');
     } catch (error) {
       console.error("Error signing in with email and password:", error);
+      alert("Failed to sign in. Please check your credentials and try again.");
     }
   };
 
@@ -27,9 +30,10 @@ export function LoginComponent() {
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
-      // Handle successful login
+      router.push('/dashboard');
     } catch (error) {
       console.error("Error signing in with Google:", error);
+      alert("Failed to sign in with Google. Please try again.");
     }
   };
 
@@ -37,9 +41,10 @@ export function LoginComponent() {
     const provider = new GithubAuthProvider();
     try {
       await signInWithPopup(auth, provider);
-      // Handle successful login
+      router.push('/dashboard');
     } catch (error) {
       console.error("Error signing in with Github:", error);
+      alert("Failed to sign in with Github. Please try again.");
     }
   };
 
