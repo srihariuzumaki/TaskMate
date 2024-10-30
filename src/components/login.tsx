@@ -2,27 +2,38 @@
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Github, Mail } from 'lucide-react'
+import { Github, Mail, Eye, EyeOff } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { auth } from '@/firebase/config'
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, GithubAuthProvider } from 'firebase/auth'
+import { useAlert } from '@/hooks/useAlert'
 
 export function LoginComponent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
+  const { showAlert } = useAlert()
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await signInWithEmailAndPassword(auth, email, password);
       router.push('/dashboard');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error signing in with email and password:", error);
-      alert("Failed to sign in. Please check your credentials and try again.");
+      if (error.code === 'auth/user-not-found') {
+        showAlert("No account found with this email. Please sign up first.");
+      } else if (error.code === 'auth/wrong-password') {
+        showAlert("Incorrect password. Please try again.");
+      } else if (error.code === 'auth/invalid-email') {
+        showAlert("Invalid email address. Please check your email.");
+      } else {
+        showAlert("Failed to sign in. Please check your credentials and try again.");
+      }
     }
   };
 
@@ -65,12 +76,41 @@ export function LoginComponent() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <div className="relative">
+                <Input 
+                  id="password" 
+                  type={showPassword ? "text" : "password"} 
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)} 
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
             </div>
             <Button type="submit" className="w-full mt-4 bg-[#57A7B3] hover:bg-[#1A5F7A]">
               Sign In
             </Button>
           </form>
+          <div className="text-center text-sm">
+            Don't have an account?{" "}
+            <Button 
+              variant="link" 
+              className="text-[#57A7B3] hover:text-[#1A5F7A] p-0"
+              onClick={() => router.push('/signup')}
+            >
+              Sign up
+            </Button>
+          </div>
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
           <div className="relative">

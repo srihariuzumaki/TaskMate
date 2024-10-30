@@ -6,8 +6,25 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
+import { auth } from '@/firebase/config'
+import { useRouter } from 'next/navigation'
+import { signOut } from 'firebase/auth'
+import { useAlert } from '@/hooks/useAlert'
 
 export function ProfileComponent() {
+  const router = useRouter()
+  const { showAlert } = useAlert()
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth)
+      router.push('/login')
+    } catch (error) {
+      console.error('Error signing out:', error)
+      showAlert('Failed to sign out. Please try again.')
+    }
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-[#E6F3F5]">
       <header className="bg-[#A0D2DB] text-[#1A5F7A] p-4">
@@ -77,7 +94,7 @@ export function ProfileComponent() {
           </Button>
         </div>
 
-        <Button variant="destructive" className="w-full">
+        <Button variant="destructive" className="w-full" onClick={handleLogout}>
           <LogOut className="mr-2 h-4 w-4" /> Log Out
         </Button>
       </main>
