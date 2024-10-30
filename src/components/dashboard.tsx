@@ -8,18 +8,34 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { auth } from '@/firebase/config'
 import { User } from 'firebase/auth'
-import { FileText, Book, Plus, Upload, Calendar, Play, Pause, RefreshCw } from 'lucide-react'
+import { FileText, Book, Plus, Upload, Calendar, Play, Pause, RefreshCw, Link, BookOpen, Youtube, Globe, Calculator, Brain, Library, MessageSquare, Search, Loader2 } from 'lucide-react'
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 
 type TimerStatus = 'work' | 'break';
 type TimerState = 'running' | 'paused';
 
+type UploadedResource = {
+  id: string;
+  name: string;
+  summary: string;
+  dateUploaded: string;
+};
+
 export function DashboardComponent() {
   const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
   const router = useRouter()
 
   const [timeLeft, setTimeLeft] = useState<number>(25 * 60); // 25 minutes in seconds
   const [timerStatus, setTimerStatus] = useState<TimerStatus>('work');
   const [timerState, setTimerState] = useState<TimerState>('paused');
+
+  const [uploadedResources, setUploadedResources] = useState<UploadedResource[]>([]);
+  const [selectedResource, setSelectedResource] = useState<UploadedResource | null>(null);
+  const [question, setQuestion] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [aiResponse, setAiResponse] = useState('');
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -28,6 +44,7 @@ export function DashboardComponent() {
       } else {
         router.push('/login')
       }
+      setLoading(false)
     })
 
     return () => unsubscribe()
@@ -78,8 +95,45 @@ export function DashboardComponent() {
     }
   };
 
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsLoading(true);
+    // TODO: Implement file upload to your backend/storage
+    // TODO: Implement AI summarization
+    // For now, we'll mock the response
+    const mockResource: UploadedResource = {
+      id: Date.now().toString(),
+      name: file.name,
+      summary: "AI-generated summary will appear here...",
+      dateUploaded: new Date().toLocaleDateString()
+    };
+
+    setUploadedResources(prev => [...prev, mockResource]);
+    setIsLoading(false);
+  };
+
+  const handleAskQuestion = async () => {
+    if (!selectedResource || !question) return;
+    
+    setIsLoading(true);
+    // TODO: Implement AI Q&A functionality
+    // For now, we'll mock the response
+    setAiResponse("This is a mock AI response. Implement actual AI integration here.");
+    setIsLoading(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#E6F3F5]">
+        <div className="text-[#1A5F7A] text-lg">Loading...</div>
+      </div>
+    )
+  }
+
   if (!user) {
-    return <div>Loading...</div>
+    return null
   }
 
   return (
@@ -237,7 +291,128 @@ export function DashboardComponent() {
             </div>
           </TabsContent>
           <TabsContent value="materials">
-            {/* Add content for Materials tab */}
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-[#1A5F7A]">Upload Learning Materials</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="border-2 border-dashed border-[#57A7B3] rounded-lg p-8 text-center">
+                      <Input
+                        type="file"
+                        className="hidden"
+                        id="file-upload"
+                        onChange={handleFileUpload}
+                        accept=".pdf,.doc,.docx,.txt"
+                      />
+                      <label
+                        htmlFor="file-upload"
+                        className="cursor-pointer flex flex-col items-center"
+                      >
+                        <Upload className="h-12 w-12 text-[#57A7B3] mb-4" />
+                        <span className="text-[#1A5F7A] font-medium">
+                          Click to upload or drag and drop
+                        </span>
+                        <span className="text-sm text-[#57A7B3]">
+                          PDF, DOC, DOCX, TXT (max. 10MB)
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card className="md:col-span-1">
+                  <CardHeader>
+                    <CardTitle className="text-[#1A5F7A]">Uploaded Resources</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {uploadedResources.map(resource => (
+                        <div
+                          key={resource.id}
+                          className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                            selectedResource?.id === resource.id
+                              ? 'bg-[#A0D2DB] border-[#57A7B3]'
+                              : 'bg-white hover:bg-[#E6F3F5]'
+                          }`}
+                          onClick={() => setSelectedResource(resource)}
+                        >
+                          <div className="flex items-center">
+                            <FileText className="h-4 w-4 mr-2 text-[#57A7B3]" />
+                            <div>
+                              <p className="font-medium text-[#1A5F7A]">{resource.name}</p>
+                              <p className="text-xs text-[#57A7B3]">
+                                Uploaded on {resource.dateUploaded}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {uploadedResources.length === 0 && (
+                        <p className="text-[#57A7B3] text-center py-4">
+                          No resources uploaded yet
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="md:col-span-2">
+                  <CardHeader>
+                    <CardTitle className="text-[#1A5F7A]">
+                      {selectedResource ? 'AI Summary & Q&A' : 'Select a Resource'}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {selectedResource ? (
+                      <div className="space-y-4">
+                        <div className="p-4 bg-[#E6F3F5] rounded-lg">
+                          <h3 className="font-medium text-[#1A5F7A] mb-2">Summary</h3>
+                          <p className="text-[#57A7B3]">{selectedResource.summary}</p>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <h3 className="font-medium text-[#1A5F7A]">Ask a Question</h3>
+                          <div className="flex space-x-2">
+                            <Textarea
+                              placeholder="Ask anything about this resource..."
+                              value={question}
+                              onChange={(e) => setQuestion(e.target.value)}
+                              className="flex-1"
+                            />
+                            <Button
+                              className="bg-[#57A7B3] hover:bg-[#1A5F7A]"
+                              onClick={handleAskQuestion}
+                              disabled={isLoading}
+                            >
+                              {isLoading ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <MessageSquare className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+
+                        {aiResponse && (
+                          <div className="p-4 bg-white border rounded-lg">
+                            <h3 className="font-medium text-[#1A5F7A] mb-2">AI Response</h3>
+                            <p className="text-[#57A7B3]">{aiResponse}</p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-[#57A7B3]">
+                        Select a resource from the left to view its summary and ask questions
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
           </TabsContent>
         </Tabs>
       </main>
