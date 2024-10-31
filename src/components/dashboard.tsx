@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { auth } from '@/firebase/config'
 import { User } from 'firebase/auth'
-import { FileText, Book, Plus, Upload, Calendar, Play, Pause, RefreshCw, Link, BookOpen, Youtube, Globe, Calculator, Brain, Library, MessageSquare, Search, Loader2 } from 'lucide-react'
+import { FileText, Book, Plus, Upload, Calendar, Play, Pause, RefreshCw, MessageSquare, Loader2 } from 'lucide-react'
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { initializeUserData, getUserData, updateUserTasks } from '@/firebase/firestore'
@@ -332,7 +332,7 @@ export function DashboardComponent() {
                   <div className="space-y-6">
                     <div className="space-y-2">
                       <h3 className="font-semibold text-[#1A5F7A]">1. Active Recall</h3>
-                      <p className="text-[#57A7B3]">Test yourself on what you've learned without referring to your notes. This helps strengthen memory and identifies knowledge gaps.</p>
+                      <p className="text-[#57A7B3]">Test yourself on what you&apos;ve learned without referring to your notes. This helps strengthen memory and identifies knowledge gaps.</p>
                     </div>
                     
                     <div className="space-y-2">

@@ -59,6 +59,11 @@ export function LoginComponent() {
     }
   };
 
+  const handleError = (error: Error) => {
+    console.error("Error signing in:", error);
+    showAlert(error.message);
+  };
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-[#E6F3F5]">
       <Card className="w-[350px]">

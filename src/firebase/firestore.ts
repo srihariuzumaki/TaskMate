@@ -1,5 +1,5 @@
 import { db } from './config';
-import { collection, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 
 interface UserData {
   tasks: Array<{
