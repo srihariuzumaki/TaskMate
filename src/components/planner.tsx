@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Calendar, Clock, Plus, Book, FileText, Trash2 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,6 +9,9 @@ import { Separator } from "@/components/ui/separator"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { auth } from '@/firebase/config'
+import { initializeUserData, getUserData, updateUserTasks, updateUserAssignments, updateUserExams, updateUserRecords } from '@/firebase/firestore'
+import { useAlert } from '@/hooks/useAlert'
 
 
 interface Record {
@@ -37,41 +40,170 @@ export function PlannerComponent() {
 
   const dialogCloseRef = useRef<HTMLButtonElement>(null)
 
-  const addTask = (name: string, time: string) => {
-    setTasks([...tasks, { name, time }])
-  }
+  const addTask = async (name: string, time: string) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
 
-  const addAssignment = (name: string, date: string) => {
-    setAssignments([...assignments, { name, date }])
-  }
+    const newTasks = [...tasks, { name, time }];
+    try {
+      await updateUserTasks(currentUser.uid, newTasks);
+      setTasks(newTasks);
+    } catch (error) {
+      console.error('Error adding task:', error);
+      showAlert('Failed to add task. Please try again.');
+    }
+  };
 
-  const addExam = (name: string, date: string) => {
-    setExams([...exams, { name, date }])
-  }
+  const addAssignment = async (name: string, date: string) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
 
-  const addRecord = (name: string, date: string) => {
-    setRecords([...records, { name, date }])
-  }
+    const newAssignments = [...assignments, { name, date }];
+    try {
+      await updateUserAssignments(currentUser.uid, newAssignments);
+      setAssignments(newAssignments);
+    } catch (error) {
+      console.error('Error adding assignment:', error);
+      showAlert('Failed to add assignment. Please try again.');
+    }
+  };
 
-  const deleteTask = (index: number) => {
-    setTasks(tasks.filter((_, i) => i !== index))
-  }
+  const addExam = async (name: string, date: string) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
 
-  const deleteAssignment = (index: number) => {
-    setAssignments(assignments.filter((_, i) => i !== index))
-  }
+    const newExams = [...exams, { name, date }];
+    try {
+      await updateUserExams(currentUser.uid, newExams);
+      setExams(newExams);
+    } catch (error) {
+      console.error('Error adding exam:', error);
+      showAlert('Failed to add exam. Please try again.');
+    }
+  };
 
-  const deleteExam = (index: number) => {
-    setExams(exams.filter((_, i) => i !== index))
-  }
+  const addRecord = async (name: string, date: string) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
 
-  const deleteRecord = (index: number) => {
-    setRecords(records.filter((_, i) => i !== index))
-  }
+    const newRecords = [...records, { name, date }];
+    try {
+      await updateUserRecords(currentUser.uid, newRecords);
+      setRecords(newRecords);
+    } catch (error) {
+      console.error('Error adding record:', error);
+      showAlert('Failed to add record. Please try again.');
+    }
+  };
+
+  const deleteTask = async (index: number) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    const newTasks = tasks.filter((_, i) => i !== index);
+    try {
+      await updateUserTasks(currentUser.uid, newTasks);
+      setTasks(newTasks);
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      showAlert('Failed to delete task. Please try again.');
+    }
+  };
+
+  const deleteAssignment = async (index: number) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    const newAssignments = assignments.filter((_, i) => i !== index);
+    try {
+      await updateUserAssignments(currentUser.uid, newAssignments);
+      setAssignments(newAssignments);
+    } catch (error) {
+      console.error('Error deleting assignment:', error);
+      showAlert('Failed to delete assignment. Please try again.');
+    }
+  };
+
+  const deleteExam = async (index: number) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    const newExams = exams.filter((_, i) => i !== index);
+    try {
+      await updateUserExams(currentUser.uid, newExams);
+      setExams(newExams);
+    } catch (error) {
+      console.error('Error deleting exam:', error);
+      showAlert('Failed to delete exam. Please try again.');
+    }
+  };
+
+  const deleteRecord = async (index: number) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    const newRecords = records.filter((_, i) => i !== index);
+    try {
+      await updateUserRecords(currentUser.uid, newRecords);
+      setRecords(newRecords);
+    } catch (error) {
+      console.error('Error deleting record:', error);
+      showAlert('Failed to delete record. Please try again.');
+    }
+  };
 
   const closeDialog = () => {
     dialogCloseRef.current?.click()
   }
+
+  const { showAlert } = useAlert()
+
+  useEffect(() => {
+    const loadUserData = async () => {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      try {
+        await initializeUserData(currentUser.uid);
+        const userData = await getUserData(currentUser.uid);
+        if (userData) {
+          setTasks(userData.tasks);
+          setAssignments(userData.assignments);
+          setExams(userData.exams);
+          setRecords(userData.records);
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error);
+        showAlert('Failed to load your data. Please try again.');
+      }
+    };
+
+    loadUserData();
+  }, []);
+
+  useEffect(() => {
+    const updateUserData = async () => {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+      
+      try {
+        const userData = {
+          tasks,
+          assignments,
+          exams,
+          records
+        };
+        await updateUserTasks(currentUser.uid, userData.tasks);
+        await updateUserAssignments(currentUser.uid, userData.assignments);
+        await updateUserExams(currentUser.uid, userData.exams);
+        await updateUserRecords(currentUser.uid, userData.records);
+      } catch (error) {
+        console.error('Error updating user data:', error);
+      }
+    };
+
+    updateUserData();
+  }, [tasks, assignments, exams, records]);
 
   return (
     <div className="flex flex-col min-h-screen bg-[#E6F3F5]">
