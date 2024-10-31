@@ -5,10 +5,12 @@ interface UserData {
   tasks: Array<{
     name: string;
     time: string;
+    progress?: number;
   }>;
   assignments: Array<{
     name: string;
     date: string;
+    progress?: number;
   }>;
   exams: Array<{
     name: string;

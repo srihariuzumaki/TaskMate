@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,6 +11,9 @@ import { User } from 'firebase/auth'
 import { FileText, Book, Plus, Upload, Calendar, Play, Pause, RefreshCw, Link, BookOpen, Youtube, Globe, Calculator, Brain, Library, MessageSquare, Search, Loader2 } from 'lucide-react'
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { initializeUserData, getUserData, updateUserTasks } from '@/firebase/firestore'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
 
 type TimerStatus = 'work' | 'break';
 type TimerState = 'running' | 'paused';
@@ -25,6 +28,8 @@ type UploadedResource = {
 export function DashboardComponent() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const [tasks, setTasks] = useState<Array<{ name: string; time: string }>>([])
+  const [assignments, setAssignments] = useState<Array<{ name: string; date: string }>>([])
   const router = useRouter()
 
   const [timeLeft, setTimeLeft] = useState<number>(25 * 60); // 25 minutes in seconds
@@ -37,18 +42,53 @@ export function DashboardComponent() {
   const [isLoading, setIsLoading] = useState(false);
   const [aiResponse, setAiResponse] = useState('');
 
+  const dialogCloseRef = useRef<HTMLButtonElement>(null)
+
+  const addTask = async (name: string, time: string) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    const newTask = { name, time };
+    const newTasks = [...tasks, newTask];
+    
+    try {
+      await updateUserTasks(currentUser.uid, newTasks);
+      setTasks(newTasks);
+    } catch (error) {
+      console.error('Error adding task:', error);
+    }
+  };
+
+  const closeDialog = () => {
+    dialogCloseRef.current?.click()
+  }
+
   useEffect(() => {
+    const loadUserData = async (currentUser: User) => {
+      try {
+        await initializeUserData(currentUser.uid);
+        const userData = await getUserData(currentUser.uid);
+        if (userData) {
+          setTasks(userData.tasks || []);
+          setAssignments(userData.assignments || []);
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error);
+      }
+    };
+
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
-        setUser(user)
+        setUser(user);
+        loadUserData(user); // Load data immediately when user is authenticated
       } else {
-        router.push('/login')
+        router.push('/login');
       }
-      setLoading(false)
-    })
+      setLoading(false);
+    });
 
-    return () => unsubscribe()
-  }, [router])
+    return () => unsubscribe();
+  }, [router]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -124,6 +164,40 @@ export function DashboardComponent() {
     setIsLoading(false);
   };
 
+  // Replace the hardcoded card content with dynamic content
+  const renderUpcomingTasks = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-[#1A5F7A]">Upcoming Tasks</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {tasks.map((task, index) => (
+            <div key={`task-${index}`}>
+              <div className="flex justify-between items-center mb-2">
+                <span className="font-medium text-[#1A5F7A]">{task.name}</span>
+                <span className="text-sm text-[#57A7B3]">Time: {task.time}</span>
+              </div>
+              <Progress value={75} className="h-2 bg-[#E6F3F5]" />
+            </div>
+          ))}
+          {assignments.map((assignment, index) => (
+            <div key={`assignment-${index}`}>
+              <div className="flex justify-between items-center mb-2">
+                <span className="font-medium text-[#1A5F7A]">{assignment.name}</span>
+                <span className="text-sm text-[#57A7B3]">Due: {assignment.date}</span>
+              </div>
+              <Progress value={75} className="h-2 bg-[#E6F3F5]" />
+            </div>
+          ))}
+          {tasks.length === 0 && assignments.length === 0 && (
+            <p className="text-[#57A7B3] text-center py-4">No upcoming tasks or assignments</p>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#E6F3F5]">
@@ -155,30 +229,7 @@ export function DashboardComponent() {
           </TabsList>
           <TabsContent value="dashboard">
             <div className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-[#1A5F7A]">Upcoming Tasks</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="font-medium text-[#1A5F7A]">Math Assignment</span>
-                        <span className="text-sm text-[#57A7B3]">Due in 2 days</span>
-                      </div>
-                      <Progress value={75} className="h-2 bg-[#E6F3F5]" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="font-medium text-[#1A5F7A]">Physics Quiz</span>
-                        <span className="text-sm text-[#57A7B3]">Due in 4 days</span>
-                      </div>
-                      <Progress value={30} className="h-2 bg-[#E6F3F5]" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
+              {renderUpcomingTasks()}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-[#1A5F7A]">Recent Materials</CardTitle>
@@ -216,10 +267,23 @@ export function DashboardComponent() {
                 </CardHeader>
                 <CardContent>
                   <div className="flex space-x-4">
-                    <Button className="flex-1 bg-[#57A7B3] hover:bg-[#1A5F7A]">
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add Task
-                    </Button>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button className="flex-1 bg-[#57A7B3] hover:bg-[#1A5F7A]">
+                          <Plus className="mr-2 h-4 w-4" />
+                          Add Task
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Add New Task</DialogTitle>
+                        </DialogHeader>
+                        <AddTaskForm onAdd={addTask} onClose={closeDialog} />
+                        <DialogTrigger asChild>
+                          <button ref={dialogCloseRef} className="hidden">Close</button>
+                        </DialogTrigger>
+                      </DialogContent>
+                    </Dialog>
                     <Button variant="outline" className="flex-1">
                       <Upload className="mr-2 h-4 w-4" />
                       Upload Material
@@ -417,5 +481,50 @@ export function DashboardComponent() {
         </Tabs>
       </main>
     </div>
+  )
+}
+
+function AddTaskForm({ onAdd, onClose }: { onAdd: (name: string, time: string) => void, onClose: () => void }) {
+  const [name, setName] = useState('')
+  const [startTime, setStartTime] = useState('')
+  const [endTime, setEndTime] = useState('')
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    onAdd(name, `${startTime} - ${endTime}`)
+    setName('')
+    setStartTime('')
+    setEndTime('')
+    onClose()
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <Label htmlFor="task-name">Task Name</Label>
+        <Input id="task-name" value={name} onChange={(e) => setName(e.target.value)} required />
+      </div>
+      <div>
+        <Label htmlFor="task-start-time">Start Time</Label>
+        <Input
+          id="task-start-time"
+          type="time"
+          value={startTime}
+          onChange={(e) => setStartTime(e.target.value)}
+          required
+        />
+      </div>
+      <div>
+        <Label htmlFor="task-end-time">End Time</Label>
+        <Input
+          id="task-end-time"
+          type="time"
+          value={endTime}
+          onChange={(e) => setEndTime(e.target.value)}
+          required
+        />
+      </div>
+      <Button type="submit">Add Task</Button>
+    </form>
   )
 }

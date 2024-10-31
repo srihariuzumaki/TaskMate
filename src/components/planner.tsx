@@ -19,23 +19,26 @@ interface Record {
   date: string;
 }
 
+interface Task {
+  name: string;
+  time: string;
+}
+
+interface Assignment {
+  name: string;
+  date: string;
+}
+
+interface Exam {
+  name: string;
+  date: string;
+}
+
 export function PlannerComponent() {
-  const [tasks, setTasks] = useState([
-    { name: 'Math Study', time: '2:00 PM - 4:00 PM' },
-    { name: 'Physics Lab', time: '2:00 PM - 4:00 PM' },
-    { name: 'English Essay', time: '2:00 PM - 4:00 PM' },
-    { name: 'History Reading', time: '2:00 PM - 4:00 PM' },
-  ])
-  const [assignments, setAssignments] = useState([
-    { name: 'Math Problem Set', date: 'May 15, 2023' },
-    { name: 'Physics Lab Report', date: 'May 18, 2023' },
-    { name: 'English Literature Essay', date: 'May 20, 2023' },
-  ])
-  const [exams, setExams] = useState([
-    { name: 'Chemistry Midterm', date: 'May 25, 2023' },
-    { name: 'History Final', date: 'June 1, 2023' },
-    { name: 'Computer Science Project Presentation', date: 'June 5, 2023' },
-  ])
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [assignments, setAssignments] = useState<Assignment[]>([])
+  const [exams, setExams] = useState<Exam[]>([])
+    
   const [records, setRecords] = useState<Record[]>([])
 
   const dialogCloseRef = useRef<HTMLButtonElement>(null)
@@ -44,7 +47,9 @@ export function PlannerComponent() {
     const currentUser = auth.currentUser;
     if (!currentUser) return;
 
-    const newTasks = [...tasks, { name, time }];
+    const newTask = { name, time };
+    const newTasks = [...tasks, newTask];
+    
     try {
       await updateUserTasks(currentUser.uid, newTasks);
       setTasks(newTasks);
@@ -101,6 +106,7 @@ export function PlannerComponent() {
     if (!currentUser) return;
 
     const newTasks = tasks.filter((_, i) => i !== index);
+    
     try {
       await updateUserTasks(currentUser.uid, newTasks);
       setTasks(newTasks);
@@ -167,10 +173,10 @@ export function PlannerComponent() {
         await initializeUserData(currentUser.uid);
         const userData = await getUserData(currentUser.uid);
         if (userData) {
-          setTasks(userData.tasks);
-          setAssignments(userData.assignments);
-          setExams(userData.exams);
-          setRecords(userData.records);
+          setTasks(userData.tasks || []);
+          setAssignments(userData.assignments || []);
+          setExams(userData.exams || []);
+          setRecords(userData.records || []);
         }
       } catch (error) {
         console.error('Error loading user data:', error);
@@ -178,32 +184,14 @@ export function PlannerComponent() {
       }
     };
 
-    loadUserData();
-  }, []);
-
-  useEffect(() => {
-    const updateUserData = async () => {
-      const currentUser = auth.currentUser;
-      if (!currentUser) return;
-      
-      try {
-        const userData = {
-          tasks,
-          assignments,
-          exams,
-          records
-        };
-        await updateUserTasks(currentUser.uid, userData.tasks);
-        await updateUserAssignments(currentUser.uid, userData.assignments);
-        await updateUserExams(currentUser.uid, userData.exams);
-        await updateUserRecords(currentUser.uid, userData.records);
-      } catch (error) {
-        console.error('Error updating user data:', error);
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        loadUserData();
       }
-    };
+    });
 
-    updateUserData();
-  }, [tasks, assignments, exams, records]);
+    return () => unsubscribe();
+  }, []);
 
   return (
     <div className="flex flex-col min-h-screen bg-[#E6F3F5]">
