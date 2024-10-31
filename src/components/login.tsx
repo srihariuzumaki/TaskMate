@@ -42,9 +42,12 @@ export function LoginComponent() {
     try {
       await signInWithPopup(auth, provider);
       router.push('/dashboard');
-    } catch (error) {
-      console.error("Error signing in with Google:", error);
-      alert("Failed to sign in with Google. Please try again.");
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        handleError(error);
+      } else {
+        showAlert('An unknown error occurred');
+      }
     }
   };
 

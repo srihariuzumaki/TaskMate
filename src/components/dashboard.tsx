@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -63,6 +63,17 @@ export function DashboardComponent() {
     dialogCloseRef.current?.click()
   }
 
+  const switchMode = useCallback(() => {
+    setTimerState('paused');
+    if (timerStatus === 'work') {
+      setTimerStatus('break');
+      setTimeLeft(5 * 60); // 5 minutes break
+    } else {
+      setTimerStatus('work');
+      setTimeLeft(25 * 60);
+    }
+  }, [timerStatus]);
+
   useEffect(() => {
     const loadUserData = async (currentUser: User) => {
       try {
@@ -106,7 +117,7 @@ export function DashboardComponent() {
     }
 
     return () => clearInterval(interval);
-  }, [timerState]);
+  }, [timerState, switchMode]);
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -122,17 +133,6 @@ export function DashboardComponent() {
     setTimerState('paused');
     setTimerStatus('work');
     setTimeLeft(25 * 60);
-  };
-
-  const switchMode = () => {
-    setTimerState('paused');
-    if (timerStatus === 'work') {
-      setTimerStatus('break');
-      setTimeLeft(5 * 60); // 5 minutes break
-    } else {
-      setTimerStatus('work');
-      setTimeLeft(25 * 60);
-    }
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
