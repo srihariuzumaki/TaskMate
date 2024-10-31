@@ -10,10 +10,25 @@ import { auth } from '@/firebase/config'
 import { useRouter } from 'next/navigation'
 import { signOut } from 'firebase/auth'
 import { useAlert } from '@/hooks/useAlert'
+import { useEffect, useState } from 'react'
 
 export function ProfileComponent() {
   const router = useRouter()
   const { showAlert } = useAlert()
+  const [userName, setUserName] = useState<string>('User')
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user?.displayName) {
+        setUserName(user.displayName)
+      } else if (user?.email) {
+        // Fallback to email if display name is not set
+        setUserName(user.email.split('@')[0])
+      }
+    })
+
+    return () => unsubscribe()
+  }, [])
 
   const handleLogout = async () => {
     try {
@@ -36,9 +51,9 @@ export function ProfileComponent() {
           <CardContent className="flex flex-col items-center pt-6">
             <Avatar className="h-24 w-24">
               <AvatarImage src="/placeholder.svg?height=96&width=96" alt="User" />
-              <AvatarFallback>JD</AvatarFallback>
+              <AvatarFallback>{userName.slice(0, 2).toUpperCase()}</AvatarFallback>
             </Avatar>
-            <h2 className="mt-4 text-xl font-bold text-[#1A5F7A]">John Doe</h2>
+            <h2 className="mt-4 text-xl font-bold text-[#1A5F7A]">{userName}</h2>
             <p className="text-[#57A7B3]">Computer Science Student</p>
             <Button variant="outline" className="mt-4">
               <Edit className="mr-2 h-4 w-4" /> Edit Profile
