@@ -1,44 +1,78 @@
 'use client'
 
-import React from 'react'
-import { BarChart, Book, Clock, Edit, LogOut, Settings } from 'lucide-react'
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
-import { auth } from '@/firebase/config'
-import { useRouter } from 'next/navigation'
-import { signOut } from 'firebase/auth'
-import { useAlert } from '@/hooks/useAlert'
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react';
+import { BarChart, Book, Clock, Edit, LogOut, Settings } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { auth, db } from '@/firebase/config';
+import { useRouter } from 'next/navigation';
+import { signOut } from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 export function ProfileComponent() {
-  const router = useRouter()
-  const { showAlert } = useAlert()
-  const [userName, setUserName] = useState<string>('User')
+  const router = useRouter();
+  const [userData, setUserData] = useState<any>(null);
+  const [isEditDialogOpen, setEditDialogOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [usn, setUsn] = useState('');
+  const [year, setYear] = useState('');
+  const [semester, setSemester] = useState('');
+  const [branch, setBranch] = useState('');
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user?.displayName) {
-        setUserName(user.displayName)
-      } else if (user?.email) {
-        // Fallback to email if display name is not set
-        setUserName(user.email.split('@')[0])
+    const fetchData = async () => {
+      try {
+        const user = auth.currentUser;
+        if (user) {
+          const userDocRef = doc(db, 'users', user.uid);
+          const docSnap = await getDoc(userDocRef);
+          const data = docSnap.data() || {};
+          setUserData(data);
+          setName(data.username || '');
+          setUsn(data.usn || '');
+          setYear(data.year || '');
+          setSemester(data.semester || '');
+          setBranch(data.branch || '');
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
       }
-    })
+    };
 
-    return () => unsubscribe()
-  }, [])
+    fetchData();
+  }, []);
 
   const handleLogout = async () => {
     try {
-      await signOut(auth)
-      router.push('/login')
+      await signOut(auth);
+      router.push('/login');
     } catch (error) {
-      console.error('Error signing out:', error)
-      showAlert('Failed to sign out. Please try again.')
+      console.error('Error signing out:', error);
     }
-  }
+  };
+
+  const handleEditProfile = async () => {
+    const updatedData = {
+      username: name,
+      usn: usn.toUpperCase(),
+      year,
+      semester,
+      branch,
+    };
+    setUserData(updatedData);
+    setEditDialogOpen(false);
+
+    // Save updated data to Firestore
+    const user = auth.currentUser;
+    if (user) {
+      await setDoc(doc(db, 'users', user.uid), updatedData, { merge: true });
+    }
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-[#E6F3F5]">
@@ -51,68 +85,58 @@ export function ProfileComponent() {
           <CardContent className="flex flex-col items-center pt-6">
             <Avatar className="h-24 w-24">
               <AvatarImage src="/placeholder.svg?height=96&width=96" alt="User" />
-              <AvatarFallback>{userName.slice(0, 2).toUpperCase()}</AvatarFallback>
+              <AvatarFallback>{userData?.username?.slice(0, 2).toUpperCase()}</AvatarFallback>
             </Avatar>
-            <h2 className="mt-4 text-xl font-bold text-[#1A5F7A]">{userName}</h2>
+            <h2 className="mt-4 text-xl font-bold text-[#1A5F7A]">
+              {userData?.username || userData?.email || 'User Name Not Available'}
+            </h2>
             <p className="text-[#57A7B3]">Computer Science Student</p>
-            <Button variant="outline" className="mt-4">
+            <p className="text-[#57A7B3]">USN: {usn}</p>
+            <p className="text-[#57A7B3]">Year: {year}</p>
+            <p className="text-[#57A7B3]">Semester: {semester}</p>
+            <Button variant="outline" className="mt-4" onClick={() => setEditDialogOpen(true)}>
               <Edit className="mr-2 h-4 w-4" /> Edit Profile
             </Button>
           </CardContent>
         </Card>
 
-        <Card className="bg-white border-[#A0D2DB]">
-          <CardHeader>
-            <CardTitle className="text-[#1A5F7A]">Study Statistics</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <div className="flex justify-between mb-2">
-                <span className="text-[#1A5F7A]">Total Study Time</span>
-                <span className="font-bold text-[#1A5F7A]">120h 45m</span>
+        <Dialog open={isEditDialogOpen} onOpenChange={setEditDialogOpen}>
+          
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Profile</DialogTitle>
+              <DialogDescription>
+                Update your profile information.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="name">Name</Label>
+                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
               </div>
-              <Progress value={75} className="h-2 bg-[#E6F3F5]" />
-            </div>
-            <div>
-              <div className="flex justify-between mb-2">
-                <span className="text-[#1A5F7A]">Completed Tasks</span>
-                <span className="font-bold text-[#1A5F7A]">85/100</span>
+              <div>
+                <Label htmlFor="usn">USN</Label>
+                <Input id="usn" value={usn} onChange={(e) => setUsn(e.target.value)} />
               </div>
-              <Progress value={85} className="h-2 bg-[#E6F3F5]"  />
-            </div>
-            <div>
-              <div className="flex justify-between mb-2">
-                <span className="text-[#1A5F7A]">Current Streak</span>
-                <span className="font-bold text-[#1A5F7A]">7 days</span>
+              <div>
+                <Label htmlFor="year">Year</Label>
+                <Input id="year" value={year} onChange={(e) => setYear(e.target.value)} />
               </div>
-              <Progress value={70} className="h-2 bg-[#E6F3F5]"  />
+              <div>
+                <Label htmlFor="semester">Semester</Label>
+                <Input id="semester" value={semester} onChange={(e) => setSemester(e.target.value)} />
+              </div>
+              <div>
+                <Label htmlFor="branch">Branch</Label>
+                <Input id="branch" value={branch} onChange={(e) => setBranch(e.target.value)} />
+              </div>
             </div>
-          </CardContent>
-        </Card>
-
-        <div className="grid grid-cols-2 gap-4">
-          <Button variant="outline" className="w-full py-6 flex flex-col items-center">
-            <Settings className="mb-2 h-6 w-6 text-[#57A7B3]" />
-            <span>Settings</span>
-          </Button>
-          <Button variant="outline" className="w-full py-6 flex flex-col items-center">
-            <BarChart className="mb-2 h-6 w-6 text-[#57A7B3]" />
-            <span>Detailed Stats</span>
-          </Button>
-          <Button variant="outline" className="w-full py-6 flex flex-col items-center">
-            <Book className="mb-2 h-6 w-6 text-[#57A7B3]" />
-            <span>Study History</span>
-          </Button>
-          <Button variant="outline" className="w-full py-6 flex flex-col items-center">
-            <Clock className="mb-2 h-6 w-6 text-[#57A7B3]" />
-            <span>Time Tracking</span>
-          </Button>
-        </div>
-
-        <Button variant="destructive" className="w-full" onClick={handleLogout}>
-          <LogOut className="mr-2 h-4 w-4" /> Log Out
-        </Button>
+            <div className="mt-4">
+              <Button onClick={handleEditProfile}>Save</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
-  )
+  );
 }

@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { auth } from '@/firebase/config'
+import { auth, db } from '@/firebase/config'
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, GithubAuthProvider } from 'firebase/auth'
 import { useAlert } from '@/hooks/useAlert'
+import { setDoc, doc } from 'firebase/firestore'
 
 export function SignupComponent() {
   const [email, setEmail] = useState('');
@@ -17,6 +18,7 @@ export function SignupComponent() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [username, setUsername] = useState('');
   const router = useRouter();
   const { showAlert } = useAlert()
 
@@ -27,7 +29,15 @@ export function SignupComponent() {
       return;
     }
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const userId = userCredential.user.uid;
+
+      // Save username to Firestore using the username as the document ID
+      await setDoc(doc(db, 'users', username), {
+        username: username,
+        // ... other user data
+      });
+
       router.push('/dashboard');
     } catch (error: any) {
       console.error("Error signing up with email and password:", error);
@@ -75,6 +85,10 @@ export function SignupComponent() {
         </CardHeader>
         <CardContent className="space-y-4">
           <form onSubmit={handleEmailSignup}>
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} required />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" placeholder="m@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
