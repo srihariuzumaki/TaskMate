@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { auth } from '@/firebase/config'
-import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, GithubAuthProvider } from 'firebase/auth'
+import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, GithubAuthProvider, sendPasswordResetEmail } from 'firebase/auth'
 import { useAlert } from '@/hooks/useAlert'
 
 export function LoginComponent() {
@@ -29,11 +29,26 @@ export function LoginComponent() {
         showAlert("No account found with this email. Please sign up first.");
       } else if (error.code === 'auth/wrong-password') {
         showAlert("Incorrect password. Please try again.");
+        showAlert("Forgot your password? Click here to reset it.");
       } else if (error.code === 'auth/invalid-email') {
         showAlert("Invalid email address. Please check your email.");
       } else {
         showAlert("Failed to sign in. Please check your credentials and try again.");
       }
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      showAlert("Please enter your email address.");
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email);
+      showAlert("Password reset email sent! Please check your inbox.");
+    } catch (error) {
+      console.error("Error sending password reset email:", error);
+      showAlert("Failed to send password reset email. Please try again.");
     }
   };
 
@@ -109,6 +124,15 @@ export function LoginComponent() {
               Sign In
             </Button>
           </form>
+          <div className="text-center text-sm">
+            <Button 
+              variant="link" 
+              className="text-[#57A7B3] hover:text-[#1A5F7A] p-0"
+              onClick={() => router.push('/reset-password')}
+            >
+              Forgot Password?
+            </Button>
+          </div>
           <div className="text-center text-sm">
             Don't have an account?{" "}
             <Button 
