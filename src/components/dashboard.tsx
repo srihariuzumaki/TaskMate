@@ -266,7 +266,7 @@ export function DashboardComponent() {
                   <CardTitle className="text-[#1A5F7A]">Quick Actions</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex space-x-4">
+                  <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
                     <Dialog>
                       <DialogTrigger asChild>
                         <Button className="flex-1 bg-[#57A7B3] hover:bg-[#1A5F7A]">
