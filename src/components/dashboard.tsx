@@ -11,7 +11,7 @@ import { User } from 'firebase/auth'
 import { FileText, Book, Plus, Upload, Calendar, Play, Pause, RefreshCw, MessageSquare, Loader2 } from 'lucide-react'
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { initializeUserData, getUserData, updateUserTasks } from '@/firebase/firestore'
+import { initializeUserData, getUserData, updateUserTasks, updateUserAssignments, updateUserExams, updateUserRecords } from '@/firebase/firestore'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 
@@ -25,11 +25,105 @@ type UploadedResource = {
   dateUploaded: string;
 };
 
+function AddTaskForm({ onAdd, onClose }: { onAdd: (name: string, time: string) => void, onClose: () => void }) {
+  const [name, setName] = useState('')
+  const [startTime, setStartTime] = useState('')
+  const [endTime, setEndTime] = useState('')
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    onAdd(name, `${startTime} - ${endTime}`)
+    setName('')
+    setStartTime('')
+    setEndTime('')
+    onClose()
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <Label htmlFor="task-name">Task Name</Label>
+        <Input id="task-name" value={name} onChange={(e) => setName(e.target.value)} required />
+      </div>
+      <div>
+        <Label htmlFor="task-start-time">Start Time</Label>
+        <Input
+          id="task-start-time"
+          type="time"
+          value={startTime}
+          onChange={(e) => setStartTime(e.target.value)}
+          required
+        />
+      </div>
+      <div>
+        <Label htmlFor="task-end-time">End Time</Label>
+        <Input
+          id="task-end-time"
+          type="time"
+          value={endTime}
+          onChange={(e) => setEndTime(e.target.value)}
+          required
+        />
+      </div>
+      <Button type="submit">Add Task</Button>
+    </form>
+  )
+}
+
+function AddDueDateForm({ onAddAssignment, onAddExam, onAddRecord, onClose }: { 
+  onAddAssignment: (name: string, date: string) => void, 
+  onAddExam: (name: string, date: string) => void,
+  onAddRecord: (name: string, date: string) => void,
+  onClose: () => void 
+}) {
+  const [name, setName] = useState('')
+  const [date, setDate] = useState('')
+  const [type, setType] = useState('assignment')
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (type === 'assignment') {
+      onAddAssignment(name, date)
+    } else if (type === 'exam') {
+      onAddExam(name, date)
+    } else if (type === 'record') {
+      onAddRecord(name, date)
+    }
+    setName('')
+    setDate('')
+    onClose()
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <Label htmlFor="due-date-name">Name</Label>
+        <Input id="due-date-name" value={name} onChange={(e) => setName(e.target.value)} required />
+      </div>
+      <div>
+        <Label htmlFor="due-date">Date</Label>
+        <Input id="due-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+      </div>
+      <div>
+        <Label htmlFor="due-date-type">Type</Label>
+        <select id="due-date-type" value={type} onChange={(e) => setType(e.target.value)} className="w-full border rounded p-2">
+          <option value="assignment">Assignment</option>
+          <option value="exam">Exam</option>
+          <option value="record">Record</option>
+        </select>
+      </div>
+      <Button type="submit">Add Due Date</Button>
+    </form>
+  )
+}
+
 export function DashboardComponent() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [tasks, setTasks] = useState<Array<{ name: string; time: string }>>([])
   const [assignments, setAssignments] = useState<Array<{ name: string; date: string }>>([])
+  const [exams, setExams] = useState<Array<{ name: string; date: string }>>([])
+  const [records, setRecords] = useState<Array<{ name: string; date: string }>>([])
   const router = useRouter()
 
   const [timeLeft, setTimeLeft] = useState<number>(25 * 60); // 25 minutes in seconds
@@ -59,6 +153,45 @@ export function DashboardComponent() {
     }
   };
 
+  const addAssignment = async (name: string, date: string) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    const newAssignments = [...assignments, { name, date }];
+    try {
+      await updateUserAssignments(currentUser.uid, newAssignments);
+      setAssignments(newAssignments);
+    } catch (error) {
+      console.error('Error adding assignment:', error);
+    }
+  };
+
+  const addExam = async (name: string, date: string) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    const newExams = [...exams, { name, date }];
+    try {
+      await updateUserExams(currentUser.uid, newExams);
+      setExams(newExams);
+    } catch (error) {
+      console.error('Error adding exam:', error);
+    }
+  };
+
+  const addRecord = async (name: string, date: string) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    const newRecords = [...records, { name, date }];
+    try {
+      await updateUserRecords(currentUser.uid, newRecords);
+      setRecords(newRecords);
+    } catch (error) {
+      console.error('Error adding record:', error);
+    }
+  };
+
   const closeDialog = () => {
     dialogCloseRef.current?.click()
   }
@@ -82,6 +215,8 @@ export function DashboardComponent() {
         if (userData) {
           setTasks(userData.tasks || []);
           setAssignments(userData.assignments || []);
+          setExams(userData.exams || []);
+          setRecords(userData.records || []);
         }
       } catch (error) {
         console.error('Error loading user data:', error);
@@ -190,7 +325,25 @@ export function DashboardComponent() {
               <Progress value={75} className="h-2 bg-[#E6F3F5]" />
             </div>
           ))}
-          {tasks.length === 0 && assignments.length === 0 && (
+          {exams.map((exam, index) => (
+            <div key={`exam-${index}`}>
+              <div className="flex justify-between items-center mb-2">
+                <span className="font-medium text-[#1A5F7A]">{exam.name}</span>
+                <span className="text-sm text-[#57A7B3]">Due: {exam.date}</span>
+              </div>
+              <Progress value={75} className="h-2 bg-[#E6F3F5]" />
+            </div>
+          ))}
+          {records.map((record, index) => (
+            <div key={`record-${index}`}>
+              <div className="flex justify-between items-center mb-2">
+                <span className="font-medium text-[#1A5F7A]">{record.name}</span>
+                <span className="text-sm text-[#57A7B3]">Due: {record.date}</span>
+              </div>
+              <Progress value={75} className="h-2 bg-[#E6F3F5]" />
+            </div>
+          ))}
+          {tasks.length === 0 && assignments.length === 0 && exams.length === 0 && records.length === 0 && (
             <p className="text-[#57A7B3] text-center py-4">No upcoming tasks or assignments</p>
           )}
         </div>
@@ -284,13 +437,28 @@ export function DashboardComponent() {
                         </DialogTrigger>
                       </DialogContent>
                     </Dialog>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" className="flex-1">
+                          <Calendar className="mr-2 h-4 w-4" />
+                          Add Due Date
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Add Due Date</DialogTitle>
+                        </DialogHeader>
+                        <AddDueDateForm 
+                          onAddAssignment={addAssignment}
+                          onAddExam={addExam}
+                          onAddRecord={addRecord}
+                          onClose={closeDialog}
+                        />
+                      </DialogContent>
+                    </Dialog>
                     <Button variant="outline" className="flex-1">
                       <Upload className="mr-2 h-4 w-4" />
                       Upload Material
-                    </Button>
-                    <Button variant="outline" className="flex-1">
-                      <Calendar className="mr-2 h-4 w-4" />
-                      Add Due Date
                     </Button>
                   </div>
                 </CardContent>
@@ -481,50 +649,5 @@ export function DashboardComponent() {
         </Tabs>
       </main>
     </div>
-  )
-}
-
-function AddTaskForm({ onAdd, onClose }: { onAdd: (name: string, time: string) => void, onClose: () => void }) {
-  const [name, setName] = useState('')
-  const [startTime, setStartTime] = useState('')
-  const [endTime, setEndTime] = useState('')
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    onAdd(name, `${startTime} - ${endTime}`)
-    setName('')
-    setStartTime('')
-    setEndTime('')
-    onClose()
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <Label htmlFor="task-name">Task Name</Label>
-        <Input id="task-name" value={name} onChange={(e) => setName(e.target.value)} required />
-      </div>
-      <div>
-        <Label htmlFor="task-start-time">Start Time</Label>
-        <Input
-          id="task-start-time"
-          type="time"
-          value={startTime}
-          onChange={(e) => setStartTime(e.target.value)}
-          required
-        />
-      </div>
-      <div>
-        <Label htmlFor="task-end-time">End Time</Label>
-        <Input
-          id="task-end-time"
-          type="time"
-          value={endTime}
-          onChange={(e) => setEndTime(e.target.value)}
-          required
-        />
-      </div>
-      <Button type="submit">Add Task</Button>
-    </form>
   )
 }
