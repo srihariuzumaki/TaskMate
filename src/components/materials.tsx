@@ -125,7 +125,7 @@ export function MaterialsComponent() {
   }
 
   const renderFolderContent = () => {
-    if (!currentFolder) return null
+    if (!currentFolder) return null;
 
     return (
       <>
@@ -175,37 +175,98 @@ export function MaterialsComponent() {
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[400px] w-full pr-4">
-              {currentFolder.files.length === 0 ? (
-                <p className="text-center text-[#57A7B3] py-8">This folder is empty</p>
-              ) : (
-                currentFolder.files.map((file) => (
-                  <div key={file.id} className="mb-4 flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      {/* Assuming FileIconComponent is a custom component that needs to be imported or defined */}
-                      {/* If FileIconComponent is not defined, replace it with a suitable icon or placeholder */}
-                      <img src="/path/to/file/icon.png" alt="File Icon" className="h-5 w-5 text-[#57A7B3]" />
-                      <div>
-                        <p className="text-sm font-medium text-[#1A5F7A]">{file.name}</p>
-                        <p className="text-xs text-[#57A7B3]">Added {new Date(file.createdAt).toLocaleDateString()}</p>
+              {/* Render subfolders first */}
+              {currentFolder.subFolders && currentFolder.subFolders.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-sm font-medium text-[#1A5F7A] mb-2">Subfolders</h3>
+                  {currentFolder.subFolders.map((subfolder) => (
+                    <div
+                      key={subfolder.id}
+                      className="mb-2 flex items-center justify-between bg-white p-3 rounded-lg border border-[#A0D2DB] cursor-pointer hover:bg-[#E6F3F5]"
+                    >
+                      <div 
+                        className="flex items-center space-x-3 flex-grow"
+                        onClick={() => setCurrentFolder(subfolder)}
+                      >
+                        <FolderIcon className="h-5 w-5 text-[#57A7B3]" />
+                        <div>
+                          <p className="text-sm font-medium text-[#1A5F7A]">{subfolder.name}</p>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {subfolder.tags.map((tag, index) => (
+                              <Badge key={index} variant="secondary" className="text-xs bg-[#E6F3F5] text-[#57A7B3]">
+                                {tag}
+                              </Badge>
+                            ))}
+                          </div>
+                          <p className="text-xs text-[#57A7B3] mt-1">
+                            {subfolder.files.length} files, {subfolder.subFolders.length} folders
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex space-x-2">
+                        <ChevronRight className="h-4 w-4 text-[#57A7B3]" />
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="text-red-500 hover:text-red-700"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteSubFolder(subfolder.id);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
+
+              {/* Render files */}
+              <div>
+                <h3 className="text-sm font-medium text-[#1A5F7A] mb-2">Files</h3>
+                {currentFolder.files.length === 0 ? (
+                  <p className="text-center text-[#57A7B3] py-4">No files in this folder</p>
+                ) : (
+                  currentFolder.files.map((file) => (
+                    <div key={file.id} className="mb-4 flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <img src="/path/to/file/icon.png" alt="File Icon" className="h-5 w-5 text-[#57A7B3]" />
+                        <div>
+                          <p className="text-sm font-medium text-[#1A5F7A]">{file.name}</p>
+                          <p className="text-xs text-[#57A7B3]">Added {new Date(file.createdAt).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </ScrollArea>
           </CardContent>
         </Card>
       </>
-    )
-  }
+    );
+  };
 
-  const filteredFolders = folders.filter(folder => {
-    const searchLower = searchQuery.toLowerCase()
-    return (
-      folder.name.toLowerCase().includes(searchLower) ||
-      folder.tags.some(tag => tag.toLowerCase().includes(searchLower))
-    )
-  })
+  const searchFoldersRecursively = (folders: Folder[], searchQuery: string): Folder[] => {
+    return folders.reduce((acc: Folder[], folder) => {
+      const searchLower = searchQuery.toLowerCase();
+      const folderMatches = 
+        folder.name.toLowerCase().includes(searchLower) ||
+        folder.tags.some(tag => tag.toLowerCase().includes(searchLower));
+
+      if (folderMatches) {
+        acc.push(folder);
+      }
+
+      return acc;
+    }, []);
+  };
+
+  const filteredFolders = searchQuery
+    ? searchFoldersRecursively(folders, searchQuery)
+    : folders;
+
   const renderFolderItems = (folderList: Folder[]) => (
     folderList.map((folder) => (
       <div key={folder.id} className="mb-4">
@@ -244,11 +305,6 @@ export function MaterialsComponent() {
             </Button>
           </div>
         </div>
-        {folder.subFolders.length > 0 && (
-          <div className="ml-6 mt-2">
-            {renderFolderItems(folder.subFolders)}
-          </div>
-        )}
       </div>
     ))
   );
@@ -310,61 +366,56 @@ export function MaterialsComponent() {
         </CardHeader>
         <CardContent>
           <ScrollArea className="h-[400px] w-full pr-4">
-            {folders.length === 0 ? (
-              <p className="text-center text-[#57A7B3] py-8">No folders created yet</p>
+            {filteredFolders.length === 0 ? (
+              <p className="text-center text-[#57A7B3] py-8">
+                {searchQuery ? "No matching folders found" : "No folders created yet"}
+              </p>
             ) : (
-              filteredFolders.map((folder) => (
-                <div key={folder.id} className="mb-4">
-                  <div 
-                    className="flex items-center justify-between bg-white p-3 rounded-lg border border-[#A0D2DB] cursor-pointer hover:bg-[#E6F3F5]"
-                    onClick={() => setCurrentFolder(folder)}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <FolderIcon className="h-5 w-5 text-[#57A7B3]" />
-                      <div>
-                        <p className="text-sm font-medium text-[#1A5F7A]">{folder.name}</p>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {folder.tags.map((tag, index) => (
-                            <Badge key={index} variant="secondary" className="text-xs bg-[#E6F3F5] text-[#57A7B3]">
-                              {tag}
-                            </Badge>
-                          ))}
-                        </div>
-                        <p className="text-xs text-[#57A7B3] mt-1">{folder.files.length} files</p>
-                      </div>
-                    </div>
-                    <div className="flex space-x-2">
-                      <ChevronRight className="h-4 w-4 text-[#57A7B3]" />
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="text-red-500 hover:text-red-700"
-                        onClick={async (e) => {
-                          e.stopPropagation(); // Prevent folder from opening when clicking delete
-                          const currentUser = auth.currentUser;
-                          if (!currentUser) return;
-                          
-                          const newFolders = folders.filter(f => f.id !== folder.id);
-                          try {
-                            await updateUserFolders(currentUser.uid, newFolders);
-                            setFolders(newFolders);
-                          } catch (error) {
-                            console.error('Error deleting folder:', error);
-                          }
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))
+              renderFolderItems(filteredFolders)
             )}
           </ScrollArea>
         </CardContent>
       </Card>
     </>
   )
+
+  const deleteSubFolder = async (subfolderId: string) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    const deleteSubFolderRecursive = (folders: Folder[]): Folder[] => {
+      return folders.map(folder => {
+        if (folder.id === currentFolder?.id) {
+          return {
+            ...folder,
+            subFolders: folder.subFolders.filter(sf => sf.id !== subfolderId)
+          };
+        }
+        if (folder.subFolders?.length) {
+          return {
+            ...folder,
+            subFolders: deleteSubFolderRecursive(folder.subFolders)
+          };
+        }
+        return folder;
+      });
+    };
+
+    try {
+      const newFolders = deleteSubFolderRecursive([...folders]);
+      await updateUserFolders(currentUser.uid, newFolders);
+      setFolders(newFolders);
+      
+      // Update current folder state to reflect changes
+      const updatedCurrentFolder = newFolders.find(f => f.id === currentFolder?.id);
+      if (updatedCurrentFolder) {
+        setCurrentFolder(updatedCurrentFolder);
+      }
+    } catch (error) {
+      console.error('Error deleting subfolder:', error);
+      showAlert('Failed to delete folder. Please try again.');
+    }
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-[#E6F3F5]">
