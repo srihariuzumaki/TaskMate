@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import {  Plus, Search, ChevronRight,  ArrowLeft, FolderIcon, Trash2 } from 'lucide-react'
+import {  Plus, Search, ChevronRight,  ArrowLeft, FolderIcon, Trash2, Upload, FileIcon } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -10,11 +10,58 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label"
 import { auth } from '@/firebase/config'
 import { useRouter } from 'next/navigation'
-import type { Folder, File } from '@/types/materials'
+import type { Folder, MaterialFile } from '@/types/materials'
 import { Badge } from "@/components/ui/badge"
 import { useFolderStore } from '@/store/folderStore'
-import { updateUserFolders } from '@/firebase/firestore'
+import { updateUserFolders, getUserFolders } from '@/firebase/firestore'
+import { uploadFile, deleteFile } from '@/firebase/storage'
+import { toast } from 'sonner'
 
+interface FolderSelectDialogProps {
+  folders: Folder[];
+  onSelect: (folderId: string) => void;
+  onClose: () => void;
+}
+
+function FolderSelectDialog({ folders, onSelect, onClose }: FolderSelectDialogProps) {
+  const [selectedFolder, setSelectedFolder] = useState<string>('');
+
+  const handleSelect = () => {
+    if (selectedFolder) {
+      onSelect(selectedFolder);
+      onClose();
+    }
+  };
+
+  return (
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Select Destination Folder</DialogTitle>
+      </DialogHeader>
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label>Choose Folder</Label>
+          <select
+            className="w-full p-2 border rounded-md"
+            value={selectedFolder}
+            onChange={(e) => setSelectedFolder(e.target.value)}
+          >
+            <option value="">Select a folder...</option>
+            {folders.map((folder) => (
+              <option key={folder.id} value={folder.id}>
+                {folder.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex justify-end space-x-2">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSelect} disabled={!selectedFolder}>Upload</Button>
+        </div>
+      </div>
+    </DialogContent>
+  );
+}
 
 export function MaterialsComponent() {
   const { folders, setFolders } = useFolderStore()
@@ -23,6 +70,44 @@ export function MaterialsComponent() {
   const [newFolderName, setNewFolderName] = useState('')
   const [newFolderTags, setNewFolderTags] = useState('')
   const router = useRouter()
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadFolders = async () => {
+      try {
+        const fetchedFolders = await getUserFolders();
+        if (fetchedFolders) {
+          setFolders(fetchedFolders);
+        }
+      } catch (error) {
+        console.error('Error loading folders:', error);
+        toast.error('Failed to load materials. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadFolders();
+  }, [setFolders]);
+
+  useEffect(() => {
+    const selectedFolderId = localStorage.getItem('selectedFolderId');
+    if (selectedFolderId && folders.length > 0) {
+      const folder = folders.find(f => f.id === selectedFolderId);
+      if (folder) {
+        setCurrentFolder(folder);
+      }
+      localStorage.removeItem('selectedFolderId');
+    }
+  }, [folders]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#E6F3F5]">
+        <div className="text-[#1A5F7A] text-lg">Loading materials...</div>
+      </div>
+    );
+  }
 
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) return;
@@ -78,51 +163,69 @@ export function MaterialsComponent() {
       setNewFolderTags('');
     } catch (error) {
       console.error('Error saving folder:', error);
-      showAlert('Failed to create folder. Please try again.');
+      toast.error('Failed to create folder. Please try again.');
     }
   };
 
-  useEffect(() => {
-    const selectedFolderId = localStorage.getItem('selectedFolderId');
-    if (selectedFolderId) {
-      const folder = folders.find(f => f.id === selectedFolderId);
-      if (folder) {
-        setCurrentFolder(folder);
-      }
-      localStorage.removeItem('selectedFolderId'); // Clear after use
-    }
-  }, [folders]);
-
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!currentFolder) return
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    // TODO: Implement actual file upload to storage
-    const newFile: File = {
-      id: Date.now().toString(),
-      name: file.name,
-      url: URL.createObjectURL(file),
-      type: file.type,
-      createdAt: new Date().toISOString()
-    }
-
-    const updatedFolders = folders.map(folder => {
-      if (folder.id === currentFolder.id) {
-        return {
-          ...folder,
-          files: [...folder.files, newFile]
+  const handleFileUpload = async (file: globalThis.File, destinationFolderId: string) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+  
+    const toastId = toast.loading('Uploading file...');
+  
+    try {
+      // Construct proper file path
+      const fileUrl = await uploadFile(file, `folders/${destinationFolderId}`);
+      
+      const newFile: MaterialFile = {
+        id: Date.now().toString(),
+        name: file.name,
+        url: fileUrl,
+        type: file.type,
+        createdAt: new Date().toISOString(),
+        uploadedBy: {
+          uid: currentUser.uid,
+          email: currentUser.email || 'Unknown'
         }
+      };
+  
+      const findAndUpdateFolder = (folders: Folder[]): Folder[] => {
+        return folders.map(folder => {
+          if (folder.id === destinationFolderId) {
+            return {
+              ...folder,
+              files: [...folder.files, newFile]
+            };
+          }
+          if (folder.subFolders?.length) {
+            return {
+              ...folder,
+              subFolders: findAndUpdateFolder(folder.subFolders)
+            };
+          }
+          return folder;
+        });
+      };
+  
+      const updatedFolders = findAndUpdateFolder([...folders]);
+      await updateUserFolders(currentUser.uid, updatedFolders);
+      setFolders(updatedFolders);
+  
+      if (currentFolder?.id === destinationFolderId) {
+        setCurrentFolder(prev => prev ? {
+          ...prev,
+          files: [...prev.files, newFile]
+        } : null);
       }
-      return folder
-    })
-
-    setFolders(updatedFolders)
-    setCurrentFolder(prev => prev ? {
-      ...prev,
-      files: [...prev.files, newFile]
-    } : null)
-  }
+  
+      toast.success('File uploaded successfully!');
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      toast.error('Failed to upload file. Please try again.');
+    } finally {
+      toast.dismiss(toastId);
+    }
+  };
 
   const renderFolderContent = () => {
     if (!currentFolder) return null;
@@ -166,6 +269,34 @@ export function MaterialsComponent() {
                 <Button onClick={handleCreateFolder}>Create Folder</Button>
               </div>
             </DialogContent>
+          </Dialog>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="icon">
+                <Upload className="h-4 w-4" />
+              </Button>
+            </DialogTrigger>
+            <FolderSelectDialog
+              folders={folders}
+              onSelect={(folderId) => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '*/*';
+                input.onchange = (e) => {
+                  const target = e.target as HTMLInputElement;
+                  if (target.files?.[0]) {
+                    handleFileUpload(target.files[0], folderId);
+                  }
+                };
+                input.click();
+              }}
+              onClose={() => {
+                const dialogTrigger = document.querySelector('[role="dialog"]');
+                if (dialogTrigger) {
+                  (dialogTrigger as HTMLElement).click();
+                }
+              }}
+            />
           </Dialog>
         </div>
 
@@ -231,12 +362,29 @@ export function MaterialsComponent() {
                   currentFolder.files.map((file) => (
                     <div key={file.id} className="mb-4 flex items-center justify-between">
                       <div className="flex items-center space-x-3">
-                        <img src="/path/to/file/icon.png" alt="File Icon" className="h-5 w-5 text-[#57A7B3]" />
+                        <FileIcon className="h-5 w-5 text-[#57A7B3]" />
                         <div>
-                          <p className="text-sm font-medium text-[#1A5F7A]">{file.name}</p>
-                          <p className="text-xs text-[#57A7B3]">Added {new Date(file.createdAt).toLocaleDateString()}</p>
+                          <a 
+                            href={file.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-sm font-medium text-[#1A5F7A] hover:underline"
+                          >
+                            {file.name}
+                          </a>
+                          <p className="text-xs text-[#57A7B3]">
+                            Added {new Date(file.createdAt).toLocaleDateString()}
+                          </p>
                         </div>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-red-500 hover:text-red-700"
+                        onClick={() => handleDeleteFile(file.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   ))
                 )}
@@ -358,6 +506,34 @@ export function MaterialsComponent() {
             </div>
           </DialogContent>
         </Dialog>
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="icon">
+              <Upload className="h-4 w-4" />
+            </Button>
+          </DialogTrigger>
+          <FolderSelectDialog
+            folders={folders}
+            onSelect={(folderId) => {
+              const input = document.createElement('input');
+              input.type = 'file';
+              input.accept = '*/*';
+              input.onchange = (e) => {
+                const target = e.target as HTMLInputElement;
+                if (target.files?.[0]) {
+                  handleFileUpload(target.files[0], folderId);
+                }
+              };
+              input.click();
+            }}
+            onClose={() => {
+              const dialogTrigger = document.querySelector('[role="dialog"]');
+              if (dialogTrigger) {
+                (dialogTrigger as HTMLElement).click();
+              }
+            }}
+          />
+        </Dialog>
       </div>
 
       <Card className="bg-white border-[#A0D2DB]">
@@ -413,7 +589,61 @@ export function MaterialsComponent() {
       }
     } catch (error) {
       console.error('Error deleting subfolder:', error);
-      showAlert('Failed to delete folder. Please try again.');
+      toast.error('Failed to delete folder. Please try again.');
+    }
+  };
+
+  const handleDeleteFile = async (fileId: string) => {
+    if (!currentFolder) return;
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    const toastId = toast.loading('Deleting file...');
+
+    try {
+      // Find the file to get its path
+      const fileToDelete = currentFolder.files.find(f => f.id === fileId);
+      if (!fileToDelete) throw new Error('File not found');
+
+      // Delete from storage first
+      const filePath = `folders/${currentFolder.id}/${fileToDelete.name}`;
+      await deleteFile(filePath);
+
+      // Then update Firestore
+      const findAndUpdateFolder = (folders: Folder[]): Folder[] => {
+        return folders.map(folder => {
+          if (folder.id === currentFolder.id) {
+            return {
+              ...folder,
+              files: folder.files.filter(f => f.id !== fileId)
+            };
+          }
+          if (folder.subFolders?.length) {
+            return {
+              ...folder,
+              subFolders: findAndUpdateFolder(folder.subFolders)
+            };
+          }
+          return folder;
+        });
+      };
+
+      const updatedFolders = findAndUpdateFolder([...folders]);
+      await updateUserFolders(currentUser.uid, updatedFolders);
+      setFolders(updatedFolders);
+
+      // Update current folder state
+      setCurrentFolder(prev => prev ? {
+        ...prev,
+        files: prev.files.filter(f => f.id !== fileId)
+      } : null);
+
+      toast.success('File deleted successfully');
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      toast.error('Failed to delete file. Please try again.');
+    } finally {
+      toast.dismiss(toastId);
     }
   };
 
@@ -428,8 +658,4 @@ export function MaterialsComponent() {
       </main>
     </div>
   )
-}
-
-function showAlert(arg0: string) {
-  throw new Error('Function not implemented.')
 }

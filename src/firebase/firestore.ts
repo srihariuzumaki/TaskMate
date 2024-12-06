@@ -1,5 +1,6 @@
 import { db } from './config';
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, collection } from 'firebase/firestore';
+import type { Folder } from '@/types/materials';
 
 interface UserData {
   tasks: Array<{
@@ -38,16 +39,14 @@ interface UserData {
 export const initializeUserData = async (userId: string) => {
   const userRef = doc(db, 'users', userId);
   const userSnap = await getDoc(userRef);
-
+  
   if (!userSnap.exists()) {
-    const initialData: UserData = {
+    await setDoc(userRef, {
       tasks: [],
       assignments: [],
       exams: [],
-      records: [],
-      folders: []
-    };
-    await setDoc(userRef, initialData);
+      records: []
+    });
   }
 };
 
@@ -71,9 +70,9 @@ export const updateUserRecords = async (userId: string, records: UserData['recor
   await updateDoc(userRef, { records });
 };
 
-export const updateUserFolders = async (userId: string, folders: UserData['folders']) => {
-  const userRef = doc(db, 'users', userId);
-  await updateDoc(userRef, { folders });
+export const updateUserFolders = async (userId: string, folders: Folder[]) => {
+  const foldersRef = doc(db, 'folders', 'global');
+  await setDoc(foldersRef, { folders }, { merge: true });
 };
 
 export const getUserData = async (userId: string): Promise<UserData | null> => {
@@ -84,4 +83,21 @@ export const getUserData = async (userId: string): Promise<UserData | null> => {
     return userSnap.data() as UserData;
   }
   return null;
+};
+
+export const getUserFolders = async () => {
+  try {
+    const foldersRef = doc(db, 'folders', 'global');
+    const docSnap = await getDoc(foldersRef);
+    
+    if (!docSnap.exists()) {
+      await setDoc(foldersRef, { folders: [] });
+      return [];
+    }
+    
+    return docSnap.data().folders as Folder[];
+  } catch (error) {
+    console.error('Error fetching folders:', error);
+    return [];
+  }
 };
