@@ -8,13 +8,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { auth } from '@/firebase/config'
 import { User } from 'firebase/auth'
-import { FileText, Book, Plus, Upload, Calendar, Play, Pause, RefreshCw, MessageSquare, Loader2, FolderIcon, ChevronRight } from 'lucide-react'
+import { FileText, Book, Plus, Upload, Calendar, Play, Pause, RefreshCw, MessageSquare, Loader2, FolderIcon, ChevronRight, ArrowLeft } from 'lucide-react'
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { initializeUserData, getUserData, updateUserTasks, updateUserAssignments, updateUserExams, updateUserRecords } from '@/firebase/firestore'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { useFolderStore } from '@/store/folderStore'
+import { Folder } from '@/types/materials'
 
 type TimerStatus = 'work' | 'break';
 type TimerState = 'running' | 'paused';
@@ -139,7 +140,9 @@ export function DashboardComponent() {
 
   const dialogCloseRef = useRef<HTMLButtonElement>(null)
 
-  const { folders } = useFolderStore()
+  const { folders, setFolders } = useFolderStore()
+
+  const [currentFolder, setCurrentFolder] = useState<Folder | null>(null);
 
   const addTask = async (name: string, time: string) => {
     const currentUser = auth.currentUser;
@@ -220,6 +223,9 @@ export function DashboardComponent() {
           setAssignments(userData.assignments || []);
           setExams(userData.exams || []);
           setRecords(userData.records || []);
+          if (userData.folders) {
+            setFolders(userData.folders as unknown as Folder[]);
+          }
         }
       } catch (error) {
         console.error('Error loading user data:', error);
@@ -229,7 +235,7 @@ export function DashboardComponent() {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
         setUser(user);
-        loadUserData(user); // Load data immediately when user is authenticated
+        loadUserData(user);
       } else {
         router.push('/login');
       }
@@ -237,7 +243,7 @@ export function DashboardComponent() {
     });
 
     return () => unsubscribe();
-  }, [router]);
+  }, [router, setFolders]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -388,33 +394,70 @@ export function DashboardComponent() {
               {renderUpcomingTasks()}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-[#1A5F7A]">Recent Materials</CardTitle>
+                  <CardTitle className="text-[#1A5F7A]">
+                    {currentFolder ? currentFolder.name : "Recent Materials"}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ul className="space-y-2">
-                    {folders && folders.length === 0 ? (
-                      <p className="text-center text-[#57A7B3] py-4">No folders created yet</p>
-                    ) : (
-                      folders.slice(0, 3).map((folder: any) => (
-                        <li key={folder.id} className="flex items-center justify-between">
-                          <div className="flex items-center">
-                            <FolderIcon className="mr-2 h-4 w-4 text-[#57A7B3]" />
-                            <div>
-                              <p className="font-medium text-[#1A5F7A]">{folder.name}</p>
-                              <p className="text-sm text-[#57A7B3]">{folder.files.length} files</p>
-                            </div>
-                          </div>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => router.push('/materials')}
+                  {currentFolder ? (
+                    <div>
+                      <Button 
+                        variant="ghost" 
+                        className="mb-4"
+                        onClick={() => setCurrentFolder(null)}
+                      >
+                        <ArrowLeft className="h-4 w-4 mr-2" />
+                        Back to Folders
+                      </Button>
+                      <ul className="space-y-2">
+                        {currentFolder.files.length === 0 ? (
+                          <p className="text-center text-[#57A7B3] py-4">No files in this folder</p>
+                        ) : (
+                          currentFolder.files.map((file) => (
+                            <li key={file.id} className="flex items-center justify-between p-2 hover:bg-[#E6F3F5] rounded">
+                              <div className="flex items-center">
+                                <FileText className="mr-2 h-4 w-4 text-[#57A7B3]" />
+                                <div>
+                                  <p className="font-medium text-[#1A5F7A]">{file.name}</p>
+                                  <p className="text-sm text-[#57A7B3]">
+                                    Added {new Date(file.createdAt).toLocaleDateString()}
+                                  </p>
+                                </div>
+                              </div>
+                            </li>
+                          ))
+                        )}
+                      </ul>
+                    </div>
+                  ) : (
+                    <ul className="space-y-2">
+                      {folders && folders.length === 0 ? (
+                        <p className="text-center text-[#57A7B3] py-4">No folders created yet</p>
+                      ) : (
+                        folders.slice(0, 3).map((folder) => (
+                          <li 
+                            key={folder.id} 
+                            className="flex items-center justify-between p-2 hover:bg-[#E6F3F5] rounded cursor-pointer"
+                            onClick={() => {
+                              setFolders(folders); // Ensure folders are in store
+                              router.push('/materials');
+                              // Store the selected folder ID in localStorage to retrieve it in materials page
+                              localStorage.setItem('selectedFolderId', folder.id);
+                            }}
                           >
+                            <div className="flex items-center">
+                              <FolderIcon className="mr-2 h-4 w-4 text-[#57A7B3]" />
+                              <div>
+                                <p className="font-medium text-[#1A5F7A]">{folder.name}</p>
+                                <p className="text-sm text-[#57A7B3]">{folder.files.length} files</p>
+                              </div>
+                            </div>
                             <ChevronRight className="h-4 w-4 text-[#57A7B3]" />
-                          </Button>
-                        </li>
-                      ))
-                    )}
-                  </ul>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  )}
                 </CardContent>
               </Card>
 

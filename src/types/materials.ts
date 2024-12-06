@@ -11,4 +11,7 @@ export interface Folder {
   name: string;
   tags: string[];
   files: File[];
+  createdAt: string;
+  parentId: string | null;
+  subFolders: Folder[];
 }

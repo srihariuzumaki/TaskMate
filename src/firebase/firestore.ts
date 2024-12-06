@@ -20,6 +20,19 @@ interface UserData {
     name: string;
     date: string;
   }>;
+  folders: Array<{
+    id: string;
+    name: string;
+    tags: string[];
+    files: Array<{
+      id: string;
+      name: string;
+      url: string;
+      type: string;
+      createdAt: string;
+    }>;
+    createdAt: string;
+  }>;
 }
 
 export const initializeUserData = async (userId: string) => {
@@ -31,7 +44,8 @@ export const initializeUserData = async (userId: string) => {
       tasks: [],
       assignments: [],
       exams: [],
-      records: []
+      records: [],
+      folders: []
     };
     await setDoc(userRef, initialData);
   }
@@ -55,6 +69,11 @@ export const updateUserExams = async (userId: string, exams: UserData['exams']) 
 export const updateUserRecords = async (userId: string, records: UserData['records']) => {
   const userRef = doc(db, 'users', userId);
   await updateDoc(userRef, { records });
+};
+
+export const updateUserFolders = async (userId: string, folders: UserData['folders']) => {
+  const userRef = doc(db, 'users', userId);
+  await updateDoc(userRef, { folders });
 };
 
 export const getUserData = async (userId: string): Promise<UserData | null> => {
