@@ -1,3 +1,5 @@
+'use client'
+
 import { ProfileSection } from './ProfileSection';
 
 export function Navbar() {

@@ -1,6 +1,6 @@
-import { MaterialsComponent } from '@/components/materials'
+import { MaterialsWrapper } from '@/components/MaterialsWrapper'
 
 export default function Materials() {
-  return <MaterialsComponent />
+  return <MaterialsWrapper />
 }
 

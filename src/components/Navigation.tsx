@@ -1,3 +1,5 @@
+'use client'
+
 import React from 'react'
 import { Home, Calendar, Book, User, LogIn } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
