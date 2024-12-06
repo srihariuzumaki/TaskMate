@@ -8,12 +8,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { auth } from '@/firebase/config'
 import { User } from 'firebase/auth'
-import { FileText, Book, Plus, Upload, Calendar, Play, Pause, RefreshCw, MessageSquare, Loader2 } from 'lucide-react'
+import { FileText, Book, Plus, Upload, Calendar, Play, Pause, RefreshCw, MessageSquare, Loader2, FolderIcon, ChevronRight } from 'lucide-react'
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { initializeUserData, getUserData, updateUserTasks, updateUserAssignments, updateUserExams, updateUserRecords } from '@/firebase/firestore'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { useFolderStore } from '@/store/folderStore'
 
 type TimerStatus = 'work' | 'break';
 type TimerState = 'running' | 'paused';
@@ -137,6 +138,8 @@ export function DashboardComponent() {
   const [aiResponse, setAiResponse] = useState('');
 
   const dialogCloseRef = useRef<HTMLButtonElement>(null)
+
+  const { folders } = useFolderStore()
 
   const addTask = async (name: string, time: string) => {
     const currentUser = auth.currentUser;
@@ -389,27 +392,28 @@ export function DashboardComponent() {
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-2">
-                    <li className="flex items-center">
-                      <FileText className="mr-2 h-4 w-4 text-[#57A7B3]" />
-                      <div>
-                        <p className="font-medium text-[#1A5F7A]">Chemistry Notes</p>
-                        <p className="text-sm text-[#57A7B3]">Updated 2 days ago</p>
-                      </div>
-                    </li>
-                    <li className="flex items-center">
-                      <Book className="mr-2 h-4 w-4 text-[#57A7B3]" />
-                      <div>
-                        <p className="font-medium text-[#1A5F7A]">History Textbook</p>
-                        <p className="text-sm text-[#57A7B3]">Shared by John</p>
-                      </div>
-                    </li>
-                    <li className="flex items-center">
-                      <FileText className="mr-2 h-4 w-4 text-[#57A7B3]" />
-                      <div>
-                        <p className="font-medium text-[#1A5F7A]">English Essay</p>
-                        <p className="text-sm text-[#57A7B3]">Draft</p>
-                      </div>
-                    </li>
+                    {folders && folders.length === 0 ? (
+                      <p className="text-center text-[#57A7B3] py-4">No folders created yet</p>
+                    ) : (
+                      folders.slice(0, 3).map((folder: any) => (
+                        <li key={folder.id} className="flex items-center justify-between">
+                          <div className="flex items-center">
+                            <FolderIcon className="mr-2 h-4 w-4 text-[#57A7B3]" />
+                            <div>
+                              <p className="font-medium text-[#1A5F7A]">{folder.name}</p>
+                              <p className="text-sm text-[#57A7B3]">{folder.files.length} files</p>
+                            </div>
+                          </div>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => router.push('/materials')}
+                          >
+                            <ChevronRight className="h-4 w-4 text-[#57A7B3]" />
+                          </Button>
+                        </li>
+                      ))
+                    )}
                   </ul>
                 </CardContent>
               </Card>

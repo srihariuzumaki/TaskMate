@@ -12,10 +12,11 @@ import { auth } from '@/firebase/config'
 import { useRouter } from 'next/navigation'
 import type { Folder, File } from '@/types/materials'
 import { Badge } from "@/components/ui/badge"
+import { useFolderStore } from '@/store/folderStore'
 
 
 export function MaterialsComponent() {
-  const [folders, setFolders] = useState<Folder[]>([])
+  const { folders, setFolders } = useFolderStore()
   const [currentFolder, setCurrentFolder] = useState<Folder | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [newFolderName, setNewFolderName] = useState('')
@@ -37,7 +38,7 @@ export function MaterialsComponent() {
       files: []
     }
 
-    setFolders([...folders, newFolder])
+    setFolders(folders.concat(newFolder))
     setNewFolderName('')
     setNewFolderTags('')
   }
