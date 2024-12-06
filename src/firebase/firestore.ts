@@ -83,14 +83,10 @@ export const updateUserFolders = async (userId: string, folders: Folder[]) => {
   await setDoc(foldersRef, { folders }, { merge: true });
 };
 
-export const getUserData = async (userId: string): Promise<UserData | null> => {
+export const getUserData = async (userId: string) => {
   const userRef = doc(db, 'users', userId);
   const userSnap = await getDoc(userRef);
-
-  if (userSnap.exists()) {
-    return userSnap.data() as UserData;
-  }
-  return null;
+  return userSnap.exists() ? userSnap.data() : null;
 };
 
 export const getUserFolders = async () => {
@@ -103,7 +99,12 @@ export const getUserFolders = async () => {
       return [];
     }
     
-    return docSnap.data().folders as Folder[];
+    const folders = docSnap.data().folders as Folder[];
+    return folders.map(folder => ({
+      ...folder,
+      subFolders: folder.subFolders || [],
+      files: folder.files || []
+    }));
   } catch (error) {
     console.error('Error fetching folders:', error);
     return [];

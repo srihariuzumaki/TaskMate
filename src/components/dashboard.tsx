@@ -360,6 +360,29 @@ export function DashboardComponent() {
     </Card>
   );
 
+  const renderFolderPreview = (folder: Folder) => (
+    <li 
+      key={folder.id} 
+      className="flex items-center justify-between p-2 hover:bg-[#E6F3F5] rounded cursor-pointer"
+      onClick={() => {
+        setFolders(folders);
+        router.push('/materials');
+        localStorage.setItem('selectedFolderId', folder.id);
+      }}
+    >
+      <div className="flex items-center">
+        <FolderIcon className="mr-2 h-4 w-4 text-[#57A7B3]" />
+        <div>
+          <p className="font-medium text-[#1A5F7A]">{folder.name}</p>
+          <p className="text-sm text-[#57A7B3]">
+            {folder.files?.length || 0} files • {folder.subFolders?.length || 0} subfolders
+          </p>
+        </div>
+      </div>
+      <ChevronRight className="h-4 w-4 text-[#57A7B3]" />
+    </li>
+  );
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#E6F3F5]">
@@ -434,27 +457,7 @@ export function DashboardComponent() {
                       {folders && folders.length === 0 ? (
                         <p className="text-center text-[#57A7B3] py-4">No folders created yet</p>
                       ) : (
-                        folders.slice(0, 3).map((folder) => (
-                          <li 
-                            key={folder.id} 
-                            className="flex items-center justify-between p-2 hover:bg-[#E6F3F5] rounded cursor-pointer"
-                            onClick={() => {
-                              setFolders(folders); // Ensure folders are in store
-                              router.push('/materials');
-                              // Store the selected folder ID in localStorage to retrieve it in materials page
-                              localStorage.setItem('selectedFolderId', folder.id);
-                            }}
-                          >
-                            <div className="flex items-center">
-                              <FolderIcon className="mr-2 h-4 w-4 text-[#57A7B3]" />
-                              <div>
-                                <p className="font-medium text-[#1A5F7A]">{folder.name}</p>
-                                <p className="text-sm text-[#57A7B3]">{folder.files.length} files</p>
-                              </div>
-                            </div>
-                            <ChevronRight className="h-4 w-4 text-[#57A7B3]" />
-                          </li>
-                        ))
+                        folders.slice(0, 3).map((folder) => renderFolderPreview(folder))
                       )}
                     </ul>
                   )}

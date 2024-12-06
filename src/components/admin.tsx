@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { auth, db, storage } from '@/firebase/config';
-import { collection, query, getDocs, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, query, getDocs, doc, updateDoc, deleteDoc, getDoc, setDoc } from 'firebase/firestore';
 import { ref, listAll, deleteObject } from 'firebase/storage';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,8 +13,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Users, Folder, File, Settings, Trash2, Search, Edit, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Folder as FolderType } from '@/types/materials';
+import type { Folder as FolderType, MaterialFile } from '@/types/materials';
 import { useRouter } from 'next/navigation';
+import { getUserFolders, updateUserFolders, getUserData } from '@/firebase/firestore';
 
 interface User {
   uid: string;
@@ -58,13 +59,23 @@ export function AdminComponent() {
         } as User));
         setUsers(usersData);
 
-        // Load global folders
-        const foldersSnapshot = await getDocs(collection(db, 'folders'));
-        const foldersData = foldersSnapshot.docs.flatMap(doc => {
-          const data = doc.data();
-          return data.folders || [];
-        });
-        setFolders(foldersData);
+        // Load folders from all users
+        const allUserFolders: FolderType[] = [];
+        for (const user of usersData) {
+          const userData = await getUserData(user.uid);
+          if (userData?.folders) {
+            allUserFolders.push(...userData.folders);
+          }
+        }
+
+        // Also load global folders
+        const globalFoldersRef = doc(db, 'folders', 'global');
+        const globalFoldersSnap = await getDoc(globalFoldersRef);
+        const globalFolders = globalFoldersSnap.exists() ? globalFoldersSnap.data().folders || [] : [];
+
+        // Combine all folders and set state
+        setFolders([...allUserFolders, ...globalFolders]);
+        console.log('Loaded folders:', [...allUserFolders, ...globalFolders]); // Debug log
 
       } catch (error) {
         console.error('Error loading admin data:', error);
@@ -117,11 +128,16 @@ export function AdminComponent() {
 
   const handleUpdateFolder = async (folderId: string, updates: Partial<FolderType>) => {
     try {
-      const updatedFolders = folders.map(folder =>
+      const globalFoldersRef = doc(db, 'folders', 'global');
+      const globalFoldersSnap = await getDoc(globalFoldersRef);
+      const currentFolders = globalFoldersSnap.exists() ? globalFoldersSnap.data().folders || [] : [];
+      
+      const updatedFolders = currentFolders.map((folder: FolderType) =>
         folder.id === folderId ? { ...folder, ...updates } : folder
       );
-      await updateDoc(doc(db, 'folders', 'global'), { folders: updatedFolders });
-      setFolders(updatedFolders);
+      
+      await setDoc(globalFoldersRef, { folders: updatedFolders }, { merge: true });
+
       toast.success('Folder updated successfully');
     } catch (error) {
       console.error('Error updating folder:', error);
@@ -135,21 +151,132 @@ export function AdminComponent() {
     }
 
     try {
-      // Delete folder files from storage
-      const storageRef = ref(storage, `folders/${folderId}`);
-      const files = await listAll(storageRef);
-      await Promise.all(files.items.map(file => deleteObject(file)));
+      const globalFoldersRef = doc(db, 'folders', 'global');
+      const globalFoldersSnap = await getDoc(globalFoldersRef);
+      const currentFolders = globalFoldersSnap.exists() ? globalFoldersSnap.data().folders || [] : [];
+      
+      const folderToDelete = currentFolders.find((f: FolderType) => f.id === folderId);
+      if (folderToDelete) {
+        // Delete folder files from storage
+        for (const file of folderToDelete.files || []) {
+          const fileRef = ref(storage, `folders/${folderId}/${file.name}`);
+          try {
+            await deleteObject(fileRef);
+          } catch (error) {
+            console.error('Error deleting file:', error);
+          }
+        }
 
-      // Update Firestore
-      const updatedFolders = folders.filter(folder => folder.id !== folderId);
-      await updateDoc(doc(db, 'folders', 'global'), { folders: updatedFolders });
-      setFolders(updatedFolders);
-      toast.success('Folder deleted successfully');
+        // Update Firestore
+        const updatedFolders = currentFolders.filter((folder: FolderType) => folder.id !== folderId);
+        await setDoc(globalFoldersRef, { folders: updatedFolders }, { merge: true });
+        setFolders(updatedFolders);
+        toast.success('Folder deleted successfully');
+      }
     } catch (error) {
       console.error('Error deleting folder:', error);
       toast.error('Failed to delete folder');
     }
   };
+
+  const handleDeleteFile = async (folderId: string, fileId: string) => {
+    if (!confirm('Are you sure you want to delete this file? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const globalFoldersRef = doc(db, 'folders', 'global');
+      const globalFoldersSnap = await getDoc(globalFoldersRef);
+      const currentFolders = globalFoldersSnap.exists() ? globalFoldersSnap.data().folders || [] : [];
+      
+      const folder = currentFolders.find((f: FolderType) => f.id === folderId);
+      const fileToDelete = folder?.files.find((f: MaterialFile) => f.id === fileId);
+
+      if (folder && fileToDelete) {
+        // Delete file from storage
+        const fileRef = ref(storage, `folders/${folderId}/${fileToDelete.name}`);
+        try {
+          await deleteObject(fileRef);
+        } catch (error) {
+          console.error('Error deleting file from storage:', error);
+        }
+
+        // Update folder files in Firestore and local state
+        const updatedFolders = currentFolders.map((f: FolderType) => {
+          if (f.id === folderId) {
+            return {
+              ...f,
+              files: f.files.filter(file => file.id !== fileId)
+            };
+          }
+          return f;
+        });
+
+        await setDoc(globalFoldersRef, { folders: updatedFolders }, { merge: true });
+        setFolders(updatedFolders); // Update local state
+        toast.success('File deleted successfully');
+      }
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      toast.error('Failed to delete file');
+    }
+  };
+
+  const renderFolderItem = (folder: FolderType, level = 0) => (
+    <div key={folder.id}>
+      <div className="flex items-center justify-between p-4 border-b" style={{ paddingLeft: `${level * 20 + 16}px` }}>
+        <div>
+          <p className="font-medium">{folder.name}</p>
+          <p className="text-sm text-gray-500">
+            {folder.files?.length || 0} files • {folder.subFolders?.length || 0} subfolders • {folder.tags?.join(', ')}
+          </p>
+        </div>
+        <div className="flex space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleUpdateFolder(folder.id, {
+              name: folder.name,
+              tags: folder.tags
+            })}
+          >
+            <Edit className="h-4 w-4 mr-2" />
+            Edit
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => handleDeleteFolder(folder.id)}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete
+          </Button>
+        </div>
+      </div>
+      {/* Render files */}
+      {folder.files && folder.files.length > 0 && (
+        <div className="ml-8">
+          {folder.files.map(file => (
+            <div key={file.id} className="flex items-center justify-between p-2 border-b">
+              <div className="flex items-center">
+                <File className="h-4 w-4 mr-2 text-gray-500" />
+                <span>{file.name}</span>
+              </div>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => handleDeleteFile(folder.id, file.id)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* Render subfolders recursively */}
+      {folder.subFolders?.map(subfolder => renderFolderItem(subfolder, level + 1))}
+    </div>
+  );
 
   if (loading) {
     return (
@@ -245,48 +372,18 @@ export function AdminComponent() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[500px]">
-                {folders
-                  .filter(folder => 
-                    folder.name.toLowerCase().includes(searchQuery.toLowerCase())
-                  )
-                  .map(folder => (
-                    <div key={folder.id} className="flex items-center justify-between p-4 border-b">
-                      <div>
-                        <p className="font-medium">{folder.name}</p>
-                        <p className="text-sm text-gray-500">
-                          {folder.files?.length || 0} files • {folder.tags?.join(', ')}
-                        </p>
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleUpdateFolder(folder.id, {
-                            name: folder.name,
-                            tags: folder.tags
-                          })}
-                        >
-                          <Edit className="h-4 w-4 mr-2" />
-                          Edit
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeleteFolder(folder.id)}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                {folders.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    No folders found
-                  </div>
-                )}
-              </ScrollArea>
+            <ScrollArea className="h-[500px]">
+  {folders
+    .filter(folder => 
+      folder.name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .map(folder => renderFolderItem(folder))}
+  {folders.length === 0 && (
+    <div className="text-center py-8 text-gray-500">
+      No folders found
+    </div>
+  )}
+</ScrollArea>
             </CardContent>
           </Card>
         </TabsContent>
