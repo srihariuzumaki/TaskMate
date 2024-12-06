@@ -1,5 +1,5 @@
 import { db } from './config';
-import { doc, setDoc, getDoc, updateDoc, collection } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import type { Folder } from '@/types/materials';
 
 interface UserData {
@@ -36,16 +36,24 @@ interface UserData {
   }>;
 }
 
-export const initializeUserData = async (userId: string) => {
+export const initializeUserData = async (userId: string, email: string) => {
   const userRef = doc(db, 'users', userId);
   const userSnap = await getDoc(userRef);
   
   if (!userSnap.exists()) {
+    // Check if this is the first user (make them admin)
+    const usersSnapshot = await getDocs(collection(db, 'users'));
+    const isFirstUser = usersSnapshot.empty;
+    
     await setDoc(userRef, {
+      email,
+      role: isFirstUser ? 'admin' : 'user',
+      username: email.split('@')[0],
       tasks: [],
       assignments: [],
       exams: [],
-      records: []
+      records: [],
+      folders: []
     });
   }
 };

@@ -15,6 +15,7 @@ export interface Folder {
   tags: string[];
   files: MaterialFile[];
   createdAt: string;
+  createdBy?: string;
   parentId: string | null;
   subFolders: Folder[];
 }

@@ -216,7 +216,7 @@ export function DashboardComponent() {
   useEffect(() => {
     const loadUserData = async (currentUser: User) => {
       try {
-        await initializeUserData(currentUser.uid);
+        await initializeUserData(currentUser.uid, currentUser.email || '');
         const userData = await getUserData(currentUser.uid);
         if (userData) {
           setTasks(userData.tasks || []);

@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { auth, db } from '@/firebase/config'
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, GithubAuthProvider } from 'firebase/auth'
 import { useAlert } from '@/hooks/useAlert'
-import { setDoc, doc } from 'firebase/firestore'
+import { setDoc, doc, getDocs, collection, getDoc } from 'firebase/firestore'
 
 export function SignupComponent() {
   const [email, setEmail] = useState('');
@@ -22,29 +22,42 @@ export function SignupComponent() {
   const router = useRouter();
   const { showAlert } = useAlert()
 
-  const handleEmailSignup = async (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (password !== confirmPassword) {
-      showAlert("Passwords don't match");
+      showAlert("Passwords do not match");
       return;
     }
+
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const userId = userCredential.user.uid;
-
-      // Save username to Firestore using the username as the document ID
-      await setDoc(doc(db, 'users', username), {
-        username: username,
-        // ... other user data
+      const { user } = userCredential;
+      
+      // First, create the user document
+      await setDoc(doc(db, 'users', user.uid), {
+        email: user.email,
+        username,
+        role: 'user',
+        tasks: [],
+        assignments: [],
+        exams: [],
+        records: [],
+        folders: []
       });
 
+      // Then check if it's the first user and update role if needed
+      const usersSnapshot = await getDocs(collection(db, 'users'));
+      if (usersSnapshot.size === 1) {
+        await setDoc(doc(db, 'users', user.uid), { role: 'admin' }, { merge: true });
+      }
+
       router.push('/dashboard');
-    } catch (error: any) {
-      console.error("Error signing up with email and password:", error);
-      if (error.code === 'auth/email-already-in-use') {
-        showAlert("This email is already registered. Please use a different email or try logging in.");
+    } catch (error) {
+      if (error instanceof Error) {
+        showAlert(error.message);
       } else {
-        showAlert("Failed to create account. Please try again.");
+        showAlert("An error occurred during signup");
       }
     }
   };
@@ -52,20 +65,49 @@ export function SignupComponent() {
   const handleGoogleSignup = async () => {
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      const { user } = result;
+      
+      // Check if user already exists
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (!userDoc.exists()) {
+        await setDoc(doc(db, 'users', user.uid), {
+          email: user.email,
+          username: user.email?.split('@')[0] || '',
+          role: 'user',
+          tasks: [],
+          assignments: [],
+          exams: [],
+          records: [],
+          folders: []
+        });
+
+        // Check if first user
+        const usersSnapshot = await getDocs(collection(db, 'users'));
+        if (usersSnapshot.size === 1) {
+          await setDoc(doc(db, 'users', user.uid), { role: 'admin' }, { merge: true });
+        }
+      }
+      
       router.push('/dashboard');
     } catch (error) {
-      console.error("Error signing up with Google:", error);
+      if (error instanceof Error) {
+        showAlert(error.message);
+      } else {
+        showAlert("An error occurred during Google signup");
+      }
     }
   };
 
   const handleGithubSignup = async () => {
     const provider = new GithubAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      await initializeUserData(result.user.uid, result.user.email || '');
       router.push('/dashboard');
     } catch (error) {
       console.error("Error signing up with Github:", error);
+      showAlert((error as Error).message);
     }
   };
 
@@ -84,7 +126,7 @@ export function SignupComponent() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <form onSubmit={handleEmailSignup}>
+          <form onSubmit={handleSignup}>
             <div className="space-y-2">
               <Label htmlFor="username">Username</Label>
               <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} required />
@@ -178,3 +220,7 @@ export function SignupComponent() {
     </div>
   )
 }
+function initializeUserData(uid: string, arg1: string) {
+  throw new Error('Function not implemented.')
+}
+

@@ -1,12 +1,12 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import {  Plus, Search, ChevronRight,  ArrowLeft, FolderIcon, Trash2, Upload, FileIcon } from 'lucide-react'
+import {  Plus, Search, ChevronRight,  ArrowLeft, FolderIcon, Trash2, Upload, FileIcon, ArrowRight } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { auth } from '@/firebase/config'
 import { useRouter } from 'next/navigation'
@@ -16,49 +16,85 @@ import { useFolderStore } from '@/store/folderStore'
 import { updateUserFolders, getUserFolders } from '@/firebase/firestore'
 import { uploadFile, deleteFile } from '@/firebase/storage'
 import { toast } from 'sonner'
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
+import { storage } from '@/firebase/config'
 
 interface FolderSelectDialogProps {
   folders: Folder[];
   onSelect: (folderId: string) => void;
   onClose: () => void;
+  currentFolderId?: string;
 }
 
-function FolderSelectDialog({ folders, onSelect, onClose }: FolderSelectDialogProps) {
-  const [selectedFolder, setSelectedFolder] = useState<string>('');
+function FolderSelectDialog({ folders, onSelect, onClose, currentFolderId }: FolderSelectDialogProps) {
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
 
-  const handleSelect = () => {
-    if (selectedFolder) {
-      onSelect(selectedFolder);
-      onClose();
-    }
+  const toggleFolder = (folderId: string) => {
+    setExpandedFolders(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(folderId)) {
+        newSet.delete(folderId);
+      } else {
+        newSet.add(folderId);
+      }
+      return newSet;
+    });
+  };
+
+  const renderFolderOption = (folder: Folder, depth = 0) => {
+    const isExpanded = expandedFolders.has(folder.id);
+    const hasSubfolders = folder.subFolders && folder.subFolders.length > 0;
+    const isCurrentFolder = folder.id === currentFolderId;
+
+    return (
+      <div key={folder.id} className="w-full">
+        <div
+          className={`flex items-center p-2 hover:bg-[#E6F3F5] rounded ${
+            isCurrentFolder && !hasSubfolders ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+          }`}
+          style={{ paddingLeft: `${depth * 1.5 + 0.5}rem` }}
+          onClick={() => {
+            if (hasSubfolders) {
+              toggleFolder(folder.id);
+            } else if (!isCurrentFolder) {
+              onSelect(folder.id);
+              onClose();
+            }
+          }}
+        >
+          {hasSubfolders && (
+            <ChevronRight
+              className={`h-4 w-4 mr-2 transition-transform ${
+                isExpanded ? 'transform rotate-90' : ''
+              }`}
+            />
+          )}
+          <FolderIcon className="h-4 w-4 mr-2 text-[#57A7B3]" />
+          <span className={`text-sm ${isCurrentFolder && !hasSubfolders ? 'text-gray-400' : 'text-[#1A5F7A]'}`}>
+            {folder.name}
+            {isCurrentFolder && !hasSubfolders && " (current folder)"}
+          </span>
+        </div>
+        {isExpanded && hasSubfolders && (
+          <div className="ml-4">
+            {folder.subFolders.map(subfolder => renderFolderOption(subfolder, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
-    <DialogContent>
+    <DialogContent className="max-w-md">
       <DialogHeader>
         <DialogTitle>Select Destination Folder</DialogTitle>
       </DialogHeader>
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <Label>Choose Folder</Label>
-          <select
-            className="w-full p-2 border rounded-md"
-            value={selectedFolder}
-            onChange={(e) => setSelectedFolder(e.target.value)}
-          >
-            <option value="">Select a folder...</option>
-            {folders.map((folder) => (
-              <option key={folder.id} value={folder.id}>
-                {folder.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex justify-end space-x-2">
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSelect} disabled={!selectedFolder}>Upload</Button>
-        </div>
+      <div className="max-h-[400px] overflow-y-auto">
+        {folders.map(folder => renderFolderOption(folder))}
       </div>
+      <DialogFooter>
+        <Button variant="outline" onClick={onClose}>Cancel</Button>
+      </DialogFooter>
     </DialogContent>
   );
 }
@@ -71,6 +107,71 @@ export function MaterialsComponent() {
   const [newFolderTags, setNewFolderTags] = useState('')
   const router = useRouter()
   const [loading, setLoading] = useState(true);
+
+  const renderFileItem = (file: MaterialFile) => (
+    <div
+      key={file.id}
+      className="mb-4 flex items-center justify-between cursor-move"
+      draggable
+      onDragStart={(e) => {
+        e.stopPropagation();
+        e.dataTransfer.setData('application/json', JSON.stringify({
+          fileId: file.id,
+          sourceFolderId: currentFolder?.id || ''
+        }));
+        e.dataTransfer.effectAllowed = 'move';
+      }}
+    >
+      <div className="flex items-center space-x-3">
+        <FileIcon className="h-5 w-5 text-[#57A7B3]" />
+        <div>
+          <a 
+            href={file.url} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-sm font-medium text-[#1A5F7A] hover:underline"
+          >
+            {file.name}
+          </a>
+          <p className="text-xs text-[#57A7B3]">
+            Added {new Date(file.createdAt).toLocaleDateString()}
+          </p>
+        </div>
+      </div>
+      <div className="flex space-x-2">
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant="ghost" size="icon">
+              <ArrowRight className="h-4 w-4 text-[#57A7B3]" />
+            </Button>
+          </DialogTrigger>
+          <FolderSelectDialog
+            folders={folders}
+            currentFolderId={currentFolder?.id}
+            onSelect={(destinationFolderId) => {
+              if (currentFolder) {
+                moveFile(file.id, currentFolder, destinationFolderId);
+              }
+            }}
+            onClose={() => {
+              const dialogTrigger = document.querySelector('[role="dialog"]');
+              if (dialogTrigger) {
+                (dialogTrigger as HTMLElement).click();
+              }
+            }}
+          />
+        </Dialog>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-red-500 hover:text-red-700"
+          onClick={() => handleDeleteFile(file.id)}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
 
   useEffect(() => {
     const loadFolders = async () => {
@@ -359,34 +460,7 @@ export function MaterialsComponent() {
                 {currentFolder.files.length === 0 ? (
                   <p className="text-center text-[#57A7B3] py-4">No files in this folder</p>
                 ) : (
-                  currentFolder.files.map((file) => (
-                    <div key={file.id} className="mb-4 flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <FileIcon className="h-5 w-5 text-[#57A7B3]" />
-                        <div>
-                          <a 
-                            href={file.url} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-sm font-medium text-[#1A5F7A] hover:underline"
-                          >
-                            {file.name}
-                          </a>
-                          <p className="text-xs text-[#57A7B3]">
-                            Added {new Date(file.createdAt).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-red-500 hover:text-red-700"
-                        onClick={() => handleDeleteFile(file.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))
+                  currentFolder.files.map((file) => renderFileItem(file))
                 )}
               </div>
             </ScrollArea>
@@ -417,7 +491,39 @@ export function MaterialsComponent() {
 
   const renderFolderItems = (folderList: Folder[]) => (
     folderList.map((folder) => (
-      <div key={folder.id} className="mb-4">
+      <div
+        key={folder.id}
+        className="mb-4"
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          e.currentTarget.classList.add('bg-[#E6F3F5]');
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          e.currentTarget.classList.remove('bg-[#E6F3F5]');
+        }}
+        onDrop={async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          e.currentTarget.classList.remove('bg-[#E6F3F5]');
+          
+          try {
+            const data = JSON.parse(e.dataTransfer.getData('application/json'));
+            const { fileId, sourceFolderId } = data;
+            
+            if (sourceFolderId && fileId && sourceFolderId !== folder.id) {
+              const sourceFolder = findFolderById(folders, sourceFolderId);
+              if (sourceFolder) {
+                await moveFile(fileId, sourceFolder, folder.id);
+              }
+            }
+          } catch (error) {
+            console.error('Error processing drop:', error);
+          }
+        }}
+      >
         <div 
           className="flex items-center justify-between bg-white p-3 rounded-lg border border-[#A0D2DB] cursor-pointer hover:bg-[#E6F3F5]"
           onClick={() => setCurrentFolder(folder)}
@@ -601,13 +707,13 @@ export function MaterialsComponent() {
     const toastId = toast.loading('Deleting file...');
 
     try {
-      // Find the file to get its path
       const fileToDelete = currentFolder.files.find(f => f.id === fileId);
       if (!fileToDelete) throw new Error('File not found');
 
       // Delete from storage first
       const filePath = `folders/${currentFolder.id}/${fileToDelete.name}`;
-      await deleteFile(filePath);
+      const fileRef = ref(storage, filePath);
+      await deleteObject(fileRef);
 
       // Then update Firestore
       const findAndUpdateFolder = (folders: Folder[]): Folder[] => {
@@ -645,6 +751,113 @@ export function MaterialsComponent() {
     } finally {
       toast.dismiss(toastId);
     }
+  };
+
+  const moveFile = async (fileId: string, sourceFolder: Folder, destinationFolderId: string) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    const toastId = toast.loading('Moving file...');
+
+    try {
+      const fileToMove = sourceFolder.files.find(f => f.id === fileId);
+      if (!fileToMove) throw new Error('File not found');
+
+      // Get the old and new storage paths
+      const oldPath = `folders/${sourceFolder.id}/${fileToMove.name}`;
+      const newPath = `folders/${destinationFolderId}/${fileToMove.name}`;
+
+      // Create a reference to the old file location
+      const oldFileRef = ref(storage, oldPath);
+
+      // Get the download URL of the old file
+      const fileBlob = await fetch(fileToMove.url).then(r => r.blob());
+      
+      // Upload to new location
+      const newFileRef = ref(storage, newPath);
+      await uploadBytes(newFileRef, fileBlob);
+      
+      // Get the new download URL
+      const newUrl = await getDownloadURL(newFileRef);
+
+      // Create updated file object with new URL
+      const updatedFile = {
+        ...fileToMove,
+        url: newUrl
+      };
+
+      // Update folders in Firestore
+      const findAndUpdateFolders = (folders: Folder[]): Folder[] => {
+        return folders.map(folder => {
+          if (folder.id === sourceFolder.id) {
+            return {
+              ...folder,
+              files: folder.files.filter(f => f.id !== fileId)
+            };
+          }
+          if (folder.id === destinationFolderId) {
+            return {
+              ...folder,
+              files: [...folder.files, updatedFile]
+            };
+          }
+          if (folder.subFolders?.length) {
+            const updatedSubFolders = findAndUpdateFolders(folder.subFolders);
+            if (JSON.stringify(updatedSubFolders) !== JSON.stringify(folder.subFolders)) {
+              return {
+                ...folder,
+                subFolders: updatedSubFolders
+              };
+            }
+          }
+          return folder;
+        });
+      };
+
+      const updatedFolders = findAndUpdateFolders([...folders]);
+      await updateUserFolders(currentUser.uid, updatedFolders);
+      setFolders(updatedFolders);
+
+      // Update current folder state if needed
+      if (currentFolder) {
+        if (currentFolder.id === sourceFolder.id) {
+          setCurrentFolder(prev => prev ? {
+            ...prev,
+            files: prev.files.filter(f => f.id !== fileId)
+          } : null);
+        } else if (currentFolder.id === destinationFolderId) {
+          setCurrentFolder(prev => prev ? {
+            ...prev,
+            files: [...prev.files, updatedFile]
+          } : null);
+        }
+      }
+
+      // Delete the old file from storage
+      await deleteObject(oldFileRef);
+
+      toast.success('File moved successfully');
+    } catch (error) {
+      console.error('Error moving file:', error);
+      toast.error('Failed to move file. Please try again.');
+    } finally {
+      toast.dismiss(toastId);
+    }
+  };
+
+  const findFolderById = (folderList: Folder[], folderId: string): Folder | undefined => {
+    for (const folder of folderList) {
+      if (folder.id === folderId) {
+        return folder;
+      }
+      if (folder.subFolders?.length) {
+        const foundFolder = findFolderById(folder.subFolders, folderId);
+        if (foundFolder) {
+          return foundFolder;
+        }
+      }
+    }
+    return undefined;
   };
 
   return (

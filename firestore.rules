@@ -2,12 +2,22 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
     match /folders/global {
-      allow read, write: if request.auth != null;
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
     }
     
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Allow creation of first user
+      allow create: if request.auth != null && request.auth.uid == userId;
+      // Allow read/write for own data or admin
+      allow read, update, delete: if request.auth != null && 
+        (request.auth.uid == userId || isAdmin());
     }
   }
 }
