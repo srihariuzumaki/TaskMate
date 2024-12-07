@@ -477,8 +477,8 @@ export function MaterialsComponent() {
     const toastId = toast.loading('Uploading file...');
   
     try {
-      // Construct proper file path
-      const fileUrl = await uploadFile(file, `folders/${destinationFolderId}`);
+      // Update the file path to include 'global'
+      const fileUrl = await uploadFile(file, `global/folders/${destinationFolderId}`);
       
       const newFile: MaterialFile = {
         id: Date.now().toString(),
@@ -887,7 +887,7 @@ export function MaterialsComponent() {
       if (!fileToDelete) throw new Error('File not found');
 
       // Delete from storage first
-      const filePath = `folders/${currentFolder.id}/${fileToDelete.name}`;
+      const filePath = `global/folders/${currentFolder.id}/${fileToDelete.name}`;
       const fileRef = ref(storage, filePath);
       await deleteObject(fileRef);
 

@@ -79,8 +79,19 @@ export const updateUserRecords = async (userId: string, records: UserData['recor
 };
 
 export const updateUserFolders = async (userId: string, folders: Folder[]) => {
-  const foldersRef = doc(db, 'folders', 'global');
-  await setDoc(foldersRef, { folders }, { merge: true });
+  try {
+    const foldersRef = doc(db, 'folders', 'global');
+    // Create the document if it doesn't exist first
+    const docSnap = await getDoc(foldersRef);
+    if (!docSnap.exists()) {
+      await setDoc(foldersRef, { folders: [] });
+    }
+    // Then update with the new folders
+    await setDoc(foldersRef, { folders }, { merge: true });
+  } catch (error) {
+    console.error('Error updating folders:', error);
+    throw error;
+  }
 };
 
 export const getUserData = async (userId: string) => {
@@ -95,11 +106,13 @@ export const getUserFolders = async () => {
     const docSnap = await getDoc(foldersRef);
     
     if (!docSnap.exists()) {
+      // Initialize the global folders document if it doesn't exist
       await setDoc(foldersRef, { folders: [] });
       return [];
     }
     
-    const folders = docSnap.data().folders as Folder[];
+    const data = docSnap.data();
+    const folders = (data?.folders || []) as Folder[];
     return folders.map(folder => ({
       ...folder,
       subFolders: folder.subFolders || [],
@@ -107,6 +120,6 @@ export const getUserFolders = async () => {
     }));
   } catch (error) {
     console.error('Error fetching folders:', error);
-    return [];
+    throw error;
   }
 };

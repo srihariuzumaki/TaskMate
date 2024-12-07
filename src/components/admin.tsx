@@ -243,7 +243,9 @@ export function AdminComponent() {
         // Delete file from storage using the URL instead of constructing the path
         const fileUrl = new URL(file.url);
         const storagePath = decodeURIComponent(fileUrl.pathname.split('/o/')[1].split('?')[0]);
-        const fileRef = ref(storage, storagePath);
+        // Add 'global' prefix to the storage path if it's not already there
+        const normalizedPath = storagePath.startsWith('global/') ? storagePath : `global/${storagePath}`;
+        const fileRef = ref(storage, normalizedPath);
         await deleteObject(fileRef);
       } catch (storageError) {
         console.error('Storage deletion error:', storageError);

@@ -8,16 +8,14 @@ service cloud.firestore {
     }
 
     match /folders/global {
-      allow read: if request.auth != null;
-      allow write: if isAdmin();
+      allow read, write: if request.auth != null;
     }
     
     match /users/{userId} {
-      // Allow creation of first user
       allow create: if request.auth != null && request.auth.uid == userId;
-      // Allow read/write for own data or admin
       allow read, update, delete: if request.auth != null && 
         (request.auth.uid == userId || isAdmin());
     }
   }
 }
+
