@@ -11,11 +11,14 @@ import { User } from 'firebase/auth'
 import { FileText, Book, Plus, Upload, Calendar, Play, Pause, RefreshCw, MessageSquare, Loader2, FolderIcon, ChevronRight, ArrowLeft } from 'lucide-react'
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { initializeUserData, getUserData, updateUserTasks, updateUserAssignments, updateUserExams, updateUserRecords } from '@/firebase/firestore'
+import { initializeUserData, getUserData, updateUserTasks, updateUserAssignments, updateUserExams, updateUserRecords, getUserFolders, updateUserFolders } from '@/firebase/firestore'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { useFolderStore } from '@/store/folderStore'
-import { Folder } from '@/types/materials'
+import { Folder, MaterialFile } from '@/types/materials'
+import { uploadFile } from '@/firebase/storage'
+import { toast } from 'sonner'
+import { findFolder } from '@/utils/folderUtils'
 
 type TimerStatus = 'work' | 'break';
 type TimerState = 'running' | 'paused';
@@ -25,6 +28,202 @@ type UploadedResource = {
   name: string;
   summary: string;
   dateUploaded: string;
+};
+
+interface UploadDialogProps {
+  onClose: () => void;
+}
+
+function UploadDialog({ onClose }: UploadDialogProps) {
+  const { folders, setFolders } = useFolderStore();
+  const [selectedFolderId, setSelectedFolderId] = useState<string>('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile || !selectedFolderId) {
+      toast.error('Please select both a folder and a file');
+      return;
+    }
+
+    // Check for duplicate files
+    const targetFolder = findFolder(folders, selectedFolderId);
+    if (targetFolder && targetFolder.files.some((f: { name: string }) => f.name === selectedFile.name)) {
+      toast.error('A file with this name already exists in the selected folder');
+      return;
+    }
+
+    setIsUploading(true);
+    const toastId = toast.loading('Uploading file...');
+
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        toast.dismiss(toastId);
+        throw new Error('No user logged in');
+      }
+
+      const url = await uploadFile(selectedFile, selectedFolderId);
+      
+      const newFile: MaterialFile = {
+        id: Date.now().toString(),
+        name: selectedFile.name,
+        url,
+        type: selectedFile.type,
+        createdAt: new Date().toISOString(),
+        uploadedBy: {
+          uid: currentUser.uid,
+          email: currentUser.email || 'Unknown'
+        }
+      };
+
+      const findAndUpdateFolder = (folders: Folder[]): Folder[] => {
+        return folders.map(folder => {
+          if (folder.id === selectedFolderId) {
+            return {
+              ...folder,
+              files: [...folder.files, newFile]
+            };
+          }
+          if (folder.subFolders?.length) {
+            return {
+              ...folder,
+              subFolders: findAndUpdateFolder(folder.subFolders)
+            };
+          }
+          return folder;
+        });
+      };
+
+      const updatedFolders = findAndUpdateFolder([...folders]);
+      await updateUserFolders(currentUser.uid, updatedFolders);
+      setFolders(updatedFolders);
+      toast.success('File uploaded successfully');
+      onClose();
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      toast.error('Failed to upload file. Please try again.');
+    } finally {
+      setIsUploading(false);
+      toast.dismiss(toastId);
+    }
+  };
+
+  const toggleFolder = (folderId: string) => {
+    setExpandedFolders(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(folderId)) {
+        newSet.delete(folderId);
+      } else {
+        newSet.add(folderId);
+      }
+      return newSet;
+    });
+  };
+
+  const renderFolderOption = (folder: Folder, depth = 0) => {
+    const isExpanded = expandedFolders.has(folder.id);
+    const hasSubfolders = folder.subFolders && folder.subFolders.length > 0;
+    const isSelected = folder.id === selectedFolderId;
+
+    return (
+      <div key={folder.id} className="w-full">
+        <div
+          className={`flex items-center p-2 hover:bg-[#E6F3F5] rounded cursor-pointer ${
+            isSelected ? 'bg-[#E6F3F5]' : ''
+          }`}
+          style={{ paddingLeft: `${depth * 1.5 + 0.5}rem` }}
+          onClick={() => {
+            setSelectedFolderId(folder.id);
+            if (hasSubfolders) {
+              toggleFolder(folder.id);
+            }
+          }}
+        >
+          {hasSubfolders && (
+            <ChevronRight
+              className={`h-4 w-4 mr-2 transition-transform ${
+                isExpanded ? 'transform rotate-90' : ''
+              }`}
+            />
+          )}
+          <FolderIcon className="h-4 w-4 mr-2 text-[#57A7B3]" />
+          <span className="text-sm text-[#1A5F7A]">{folder.name}</span>
+        </div>
+        {isExpanded && hasSubfolders && (
+          <div className="ml-4">
+            {folder.subFolders.map(subfolder => renderFolderOption(subfolder, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Upload Material</DialogTitle>
+      </DialogHeader>
+      <div className="space-y-4 p-4">
+        <div className="space-y-2">
+          <Label htmlFor="folder">Select Folder</Label>
+          <div className="border rounded-md max-h-[200px] overflow-y-auto">
+            {folders.map(folder => renderFolderOption(folder))}
+          </div>
+        </div>
+        
+        <div className="space-y-2">
+          <Label htmlFor="file">Select File</Label>
+          <Input
+            id="file"
+            type="file"
+            accept=".pdf,.doc,.docx,.txt"
+            onChange={handleFileSelect}
+            disabled={isUploading}
+          />
+          <p className="text-sm text-[#57A7B3]">
+            Supported formats: PDF, DOC, DOCX, TXT (max. 10MB)
+          </p>
+        </div>
+
+        <Button 
+          className="w-full bg-[#57A7B3] hover:bg-[#1A5F7A]"
+          onClick={handleUpload}
+          disabled={isUploading || !selectedFile || !selectedFolderId}
+        >
+          {isUploading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Uploading...
+            </>
+          ) : (
+            <>
+              <Upload className="mr-2 h-4 w-4" />
+              Upload File
+            </>
+          )}
+        </Button>
+      </div>
+    </DialogContent>
+  );
+}
+
+const calculateTotalFiles = (folder: Folder): number => {
+  let total = folder.files?.length || 0;
+  if (folder.subFolders) {
+    folder.subFolders.forEach(subfolder => {
+      total += calculateTotalFiles(subfolder);
+    });
+  }
+  return total;
 };
 
 function AddTaskForm({ onAdd, onClose }: { onAdd: (name: string, time: string) => void, onClose: () => void }) {
@@ -223,9 +422,12 @@ export function DashboardComponent() {
           setAssignments(userData.assignments || []);
           setExams(userData.exams || []);
           setRecords(userData.records || []);
-          if (userData.folders) {
-            setFolders(userData.folders as unknown as Folder[]);
-          }
+        }
+
+        // Load folders separately using getUserFolders
+        const fetchedFolders = await getUserFolders();
+        if (fetchedFolders) {
+          setFolders(fetchedFolders);
         }
       } catch (error) {
         console.error('Error loading user data:', error);
@@ -360,27 +562,84 @@ export function DashboardComponent() {
     </Card>
   );
 
-  const renderFolderPreview = (folder: Folder) => (
-    <li 
-      key={folder.id} 
-      className="flex items-center justify-between p-2 hover:bg-[#E6F3F5] rounded cursor-pointer"
-      onClick={() => {
-        setFolders(folders);
-        router.push('/materials');
-        localStorage.setItem('selectedFolderId', folder.id);
-      }}
-    >
-      <div className="flex items-center">
-        <FolderIcon className="mr-2 h-4 w-4 text-[#57A7B3]" />
-        <div>
-          <p className="font-medium text-[#1A5F7A]">{folder.name}</p>
-          <p className="text-sm text-[#57A7B3]">
-            {folder.files?.length || 0} files • {folder.subFolders?.length || 0} subfolders
-          </p>
+  const renderFolderPreview = (folder: Folder) => {
+    const totalFiles = calculateTotalFiles(folder);
+    const recentFiles = folder.files
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 2);
+
+    return (
+      <li 
+        key={folder.id} 
+        className="flex flex-col p-2 hover:bg-[#E6F3F5] rounded cursor-pointer space-y-2"
+        onClick={() => {
+          localStorage.setItem('selectedFolderId', folder.id);
+          router.push('/materials');
+        }}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <FolderIcon className="mr-2 h-4 w-4 text-[#57A7B3]" />
+            <div>
+              <p className="font-medium text-[#1A5F7A]">{folder.name}</p>
+              <p className="text-sm text-[#57A7B3]">
+                {totalFiles} files • {folder.subFolders?.length || 0} subfolders
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="h-4 w-4 text-[#57A7B3]" />
         </div>
-      </div>
-      <ChevronRight className="h-4 w-4 text-[#57A7B3]" />
-    </li>
+        
+        {recentFiles.length > 0 && (
+          <div className="ml-6 space-y-1">
+            {recentFiles.map(file => (
+              <div key={file.id} className="flex items-center text-sm">
+                <FileText className="mr-2 h-3 w-3 text-[#57A7B3]" />
+                <a 
+                  href={file.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#57A7B3] hover:text-[#1A5F7A] hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {file.name}
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
+      </li>
+    );
+  };
+
+  const renderRecentMaterials = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-[#1A5F7A]">Recent Materials</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ul className="space-y-2">
+          {folders && folders.length === 0 ? (
+            <p className="text-center text-[#57A7B3] py-4">No folders created yet</p>
+          ) : (
+            folders
+              .sort((a, b) => {
+                const aLatest = a.files.reduce((latest, file) => {
+                  const fileDate = new Date(file.createdAt).getTime();
+                  return fileDate > latest ? fileDate : latest;
+                }, 0);
+                const bLatest = b.files.reduce((latest, file) => {
+                  const fileDate = new Date(file.createdAt).getTime();
+                  return fileDate > latest ? fileDate : latest;
+                }, 0);
+                return bLatest - aLatest;
+              })
+              .slice(0, 3)
+              .map((folder) => renderFolderPreview(folder))
+          )}
+        </ul>
+      </CardContent>
+    </Card>
   );
 
   if (loading) {
@@ -415,54 +674,7 @@ export function DashboardComponent() {
           <TabsContent value="dashboard">
             <div className="space-y-4">
               {renderUpcomingTasks()}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-[#1A5F7A]">
-                    {currentFolder ? currentFolder.name : "Recent Materials"}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {currentFolder ? (
-                    <div>
-                      <Button 
-                        variant="ghost" 
-                        className="mb-4"
-                        onClick={() => setCurrentFolder(null)}
-                      >
-                        <ArrowLeft className="h-4 w-4 mr-2" />
-                        Back to Folders
-                      </Button>
-                      <ul className="space-y-2">
-                        {currentFolder.files.length === 0 ? (
-                          <p className="text-center text-[#57A7B3] py-4">No files in this folder</p>
-                        ) : (
-                          currentFolder.files.map((file) => (
-                            <li key={file.id} className="flex items-center justify-between p-2 hover:bg-[#E6F3F5] rounded">
-                              <div className="flex items-center">
-                                <FileText className="mr-2 h-4 w-4 text-[#57A7B3]" />
-                                <div>
-                                  <p className="font-medium text-[#1A5F7A]">{file.name}</p>
-                                  <p className="text-sm text-[#57A7B3]">
-                                    Added {new Date(file.createdAt).toLocaleDateString()}
-                                  </p>
-                                </div>
-                              </div>
-                            </li>
-                          ))
-                        )}
-                      </ul>
-                    </div>
-                  ) : (
-                    <ul className="space-y-2">
-                      {folders && folders.length === 0 ? (
-                        <p className="text-center text-[#57A7B3] py-4">No folders created yet</p>
-                      ) : (
-                        folders.slice(0, 3).map((folder) => renderFolderPreview(folder))
-                      )}
-                    </ul>
-                  )}
-                </CardContent>
-              </Card>
+              {renderRecentMaterials()}
 
               <Card>
                 <CardHeader>
@@ -506,10 +718,20 @@ export function DashboardComponent() {
                         />
                       </DialogContent>
                     </Dialog>
-                    <Button variant="outline" className="flex-1">
-                      <Upload className="mr-2 h-4 w-4" />
-                      Upload Material
-                    </Button>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" className="flex-1">
+                          <Upload className="mr-2 h-4 w-4" />
+                          Upload Material
+                        </Button>
+                      </DialogTrigger>
+                      <UploadDialog onClose={() => {
+                        const dialogTrigger = document.querySelector('[role="dialog"]');
+                        if (dialogTrigger) {
+                          (dialogTrigger as HTMLElement).click();
+                        }
+                      }} />
+                    </Dialog>
                   </div>
                 </CardContent>
               </Card>

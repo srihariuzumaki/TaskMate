@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import {  Plus, Search, ChevronRight,  ArrowLeft, FolderIcon, Trash2, Upload, FileIcon, ArrowRight } from 'lucide-react'
+import {  Plus, Search, ChevronRight,  ArrowLeft, FolderIcon, Trash2, Upload, FileIcon, ArrowRight, Loader2 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -18,6 +18,7 @@ import { uploadFile, deleteFile } from '@/firebase/storage'
 import { toast } from 'sonner'
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 import { storage } from '@/firebase/config'
+import { findFolder } from '@/utils/folderUtils'
 
 interface FolderSelectDialogProps {
   folders: Folder[];
@@ -95,6 +96,207 @@ function FolderSelectDialog({ folders, onSelect, onClose, currentFolderId }: Fol
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>Cancel</Button>
       </DialogFooter>
+    </DialogContent>
+  );
+}
+
+const calculateTotalFiles = (folder: Folder): number => {
+  let total = folder.files?.length || 0;
+  if (folder.subFolders) {
+    folder.subFolders.forEach(subfolder => {
+      total += calculateTotalFiles(subfolder);
+    });
+  }
+  return total;
+};
+
+function MaterialUploadDialog({ onClose }: { onClose: () => void }) {
+  const { folders, setFolders } = useFolderStore();
+  const [selectedFolderId, setSelectedFolderId] = useState<string>('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  const toggleFolder = (folderId: string) => {
+    setExpandedFolders(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(folderId)) {
+        newSet.delete(folderId);
+      } else {
+        newSet.add(folderId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile || !selectedFolderId) {
+      toast.error('Please select both a folder and a file');
+      return;
+    }
+
+    // Check for duplicate files
+    const targetFolder = findFolder(folders, selectedFolderId);
+    if (targetFolder && targetFolder.files.some(f => f.name === selectedFile.name)) {
+      toast.error('A file with this name already exists in the selected folder');
+      return;
+    }
+
+    setIsUploading(true);
+    const toastId = toast.loading('Uploading file...');
+
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        toast.dismiss(toastId);
+        throw new Error('No user logged in');
+      }
+
+      const fileUrl = await uploadFile(selectedFile, `folders/${selectedFolderId}`);
+      
+      const newFile: MaterialFile = {
+        id: Date.now().toString(),
+        name: selectedFile.name,
+        url: fileUrl,
+        type: selectedFile.type,
+        createdAt: new Date().toISOString(),
+        uploadedBy: {
+          uid: currentUser.uid,
+          email: currentUser.email || 'Unknown'
+        }
+      };
+
+      const findAndUpdateFolder = (folders: Folder[]): Folder[] => {
+        return folders.map(folder => {
+          if (folder.id === selectedFolderId) {
+            return {
+              ...folder,
+              files: [...folder.files, newFile]
+            };
+          }
+          if (folder.subFolders?.length) {
+            return {
+              ...folder,
+              subFolders: findAndUpdateFolder(folder.subFolders)
+            };
+          }
+          return folder;
+        });
+      };
+
+      const updatedFolders = findAndUpdateFolder([...folders]);
+      await updateUserFolders(currentUser.uid, updatedFolders);
+      setFolders(updatedFolders);
+      toast.success('File uploaded successfully');
+      onClose();
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      toast.error('Failed to upload file. Please try again.');
+    } finally {
+      setIsUploading(false);
+      toast.dismiss(toastId);
+    }
+  };
+
+  const renderFolderOption = (folder: Folder, depth = 0) => {
+    const hasSubfolders = folder.subFolders && folder.subFolders.length > 0;
+    const isSelected = folder.id === selectedFolderId;
+    const isExpanded = expandedFolders.has(folder.id);
+
+    return (
+      <div key={folder.id} className="w-full">
+        <div
+          className={`flex items-center p-2 hover:bg-[#E6F3F5] rounded cursor-pointer ${
+            isSelected ? 'bg-[#E6F3F5]' : ''
+          }`}
+          style={{ paddingLeft: `${depth * 1.5 + 0.5}rem` }}
+          onClick={() => {
+            setSelectedFolderId(folder.id);
+            if (hasSubfolders) {
+              toggleFolder(folder.id);
+            }
+          }}
+        >
+          {hasSubfolders && (
+            <ChevronRight
+              className={`h-4 w-4 mr-2 transition-transform ${
+                isExpanded ? 'transform rotate-90' : ''
+              }`}
+            />
+          )}
+          <FolderIcon className="h-4 w-4 mr-2 text-[#57A7B3]" />
+          <span className="text-sm text-[#1A5F7A]">{folder.name}</span>
+        </div>
+        {isExpanded && hasSubfolders && (
+          <div className="ml-4">
+            {folder.subFolders.map(subfolder => renderFolderOption(subfolder, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <DialogContent className="sm:max-w-md">
+      <DialogHeader>
+        <DialogTitle>Upload Material</DialogTitle>
+      </DialogHeader>
+      <div className="space-y-6 p-4">
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold">Select Folder</h3>
+          <div className="border rounded-lg p-2">
+            {folders.map(renderFolderOption)}
+          </div>
+        </div>
+        
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold">Select File</h3>
+          <div 
+            className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:bg-gray-50"
+            onClick={() => document.getElementById('file-input')?.click()}
+          >
+            <input
+              id="file-input"
+              type="file"
+              className="hidden"
+              accept=".pdf,.doc,.docx,.txt"
+              onChange={handleFileSelect}
+              disabled={isUploading}
+            />
+            <span className="text-gray-500">
+              {selectedFile ? selectedFile.name : 'No file chosen'}
+            </span>
+          </div>
+          <p className="text-sm text-[#57A7B3]">
+            Supported formats: PDF, DOC, DOCX, TXT (max. 10MB)
+          </p>
+        </div>
+
+        <Button 
+          className="w-full bg-[#A0D2DB] hover:bg-[#57A7B3] text-white flex items-center justify-center"
+          onClick={handleUpload}
+          disabled={isUploading || !selectedFile || !selectedFolderId}
+        >
+          {isUploading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Uploading...
+            </>
+          ) : (
+            <>
+              <Upload className="mr-2 h-4 w-4" />
+              Upload File
+            </>
+          )}
+        </Button>
+      </div>
     </DialogContent>
   );
 }
@@ -377,26 +579,13 @@ export function MaterialsComponent() {
                 <Upload className="h-4 w-4" />
               </Button>
             </DialogTrigger>
-            <FolderSelectDialog
-              folders={folders}
-              onSelect={(folderId) => {
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.accept = '*/*';
-                input.onchange = (e) => {
-                  const target = e.target as HTMLInputElement;
-                  if (target.files?.[0]) {
-                    handleFileUpload(target.files[0], folderId);
-                  }
-                };
-                input.click();
-              }}
+            <MaterialUploadDialog 
               onClose={() => {
                 const dialogTrigger = document.querySelector('[role="dialog"]');
                 if (dialogTrigger) {
                   (dialogTrigger as HTMLElement).click();
                 }
-              }}
+              }} 
             />
           </Dialog>
         </div>
@@ -431,7 +620,7 @@ export function MaterialsComponent() {
                             ))}
                           </div>
                           <p className="text-xs text-[#57A7B3] mt-1">
-                            {subfolder.files.length} files, {subfolder.subFolders.length} folders
+                            {calculateTotalFiles(subfolder)} files, {subfolder.subFolders.length} folders
                           </p>
                         </div>
                       </div>
@@ -540,7 +729,7 @@ export function MaterialsComponent() {
                 ))}
               </div>
               <p className="text-xs text-[#57A7B3] mt-1">
-                {folder.files.length} files, {folder.subFolders.length} folders
+                {calculateTotalFiles(folder)} files, {folder.subFolders.length} folders
               </p>
             </div>
           </div>
@@ -618,26 +807,13 @@ export function MaterialsComponent() {
               <Upload className="h-4 w-4" />
             </Button>
           </DialogTrigger>
-          <FolderSelectDialog
-            folders={folders}
-            onSelect={(folderId) => {
-              const input = document.createElement('input');
-              input.type = 'file';
-              input.accept = '*/*';
-              input.onchange = (e) => {
-                const target = e.target as HTMLInputElement;
-                if (target.files?.[0]) {
-                  handleFileUpload(target.files[0], folderId);
-                }
-              };
-              input.click();
-            }}
+          <MaterialUploadDialog 
             onClose={() => {
               const dialogTrigger = document.querySelector('[role="dialog"]');
               if (dialogTrigger) {
                 (dialogTrigger as HTMLElement).click();
               }
-            }}
+            }} 
           />
         </Dialog>
       </div>
@@ -860,6 +1036,17 @@ export function MaterialsComponent() {
     return undefined;
   };
 
+  const findFolder = (folders: Folder[], targetId: string): Folder | null => {
+    for (const folder of folders) {
+      if (folder.id === targetId) return folder;
+      if (folder.subFolders) {
+        const found = findFolder(folder.subFolders, targetId);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-[#E6F3F5]">
       <header className="bg-[#A0D2DB] text-[#1A5F7A] p-4">
@@ -872,3 +1059,4 @@ export function MaterialsComponent() {
     </div>
   )
 }
+

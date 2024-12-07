@@ -222,13 +222,23 @@ export function AdminComponent() {
     }
   };
 
+  const calculateTotalFiles = (folder: FolderType): number => {
+    let total = folder.files?.length || 0;
+    if (folder.subFolders) {
+      folder.subFolders.forEach(subfolder => {
+        total += calculateTotalFiles(subfolder);
+      });
+    }
+    return total;
+  };
+
   const renderFolderItem = (folder: FolderType, level = 0) => (
     <div key={folder.id}>
       <div className="flex items-center justify-between p-4 border-b" style={{ paddingLeft: `${level * 20 + 16}px` }}>
         <div>
           <p className="font-medium">{folder.name}</p>
           <p className="text-sm text-gray-500">
-            {folder.files?.length || 0} files • {folder.subFolders?.length || 0} subfolders • {folder.tags?.join(', ')}
+            {calculateTotalFiles(folder)} files • {folder.subFolders?.length || 0} subfolders • {folder.tags?.join(', ')}
           </p>
         </div>
         <div className="flex space-x-2">
