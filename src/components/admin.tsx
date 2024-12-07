@@ -150,32 +150,51 @@ export function AdminComponent() {
       return;
     }
 
+    const toastId = toast.loading('Deleting folder...');
+
     try {
-      const globalFoldersRef = doc(db, 'folders', 'global');
-      const globalFoldersSnap = await getDoc(globalFoldersRef);
-      const currentFolders = globalFoldersSnap.exists() ? globalFoldersSnap.data().folders || [] : [];
-      
-      const folderToDelete = currentFolders.find((f: FolderType) => f.id === folderId);
-      if (folderToDelete) {
-        // Delete folder files from storage
-        for (const file of folderToDelete.files || []) {
-          const fileRef = ref(storage, `folders/${folderId}/${file.name}`);
+      // Find the folder to delete
+      const folderToDelete = folders.find(f => f.id === folderId);
+      if (!folderToDelete) {
+        throw new Error('Folder not found');
+      }
+
+      // Recursively delete all files in the folder and its subfolders
+      const deleteFilesRecursively = async (folder: FolderType) => {
+        // Delete files in current folder
+        for (const file of folder.files || []) {
+          const fileRef = ref(storage, `folders/${folder.id}/${file.name}`);
           try {
             await deleteObject(fileRef);
           } catch (error) {
-            console.error('Error deleting file:', error);
+            console.error(`Error deleting file ${file.name}:`, error);
           }
         }
 
-        // Update Firestore
-        const updatedFolders = currentFolders.filter((folder: FolderType) => folder.id !== folderId);
-        await setDoc(globalFoldersRef, { folders: updatedFolders }, { merge: true });
-        setFolders(updatedFolders);
-        toast.success('Folder deleted successfully');
-      }
+        // Recursively delete files in subfolders
+        if (folder.subFolders) {
+          for (const subfolder of folder.subFolders) {
+            await deleteFilesRecursively(subfolder);
+          }
+        }
+      };
+
+      await deleteFilesRecursively(folderToDelete);
+
+      // Update folders state by removing the deleted folder
+      const updatedFolders = folders.filter(folder => folder.id !== folderId);
+      setFolders(updatedFolders);
+
+      // Update Firestore
+      const globalFoldersRef = doc(db, 'folders', 'global');
+      await setDoc(globalFoldersRef, { folders: updatedFolders }, { merge: true });
+
+      toast.success('Folder deleted successfully');
     } catch (error) {
       console.error('Error deleting folder:', error);
-      toast.error('Failed to delete folder');
+      toast.error('Failed to delete folder. Please try again.');
+    } finally {
+      toast.dismiss(toastId);
     }
   };
 
@@ -184,41 +203,86 @@ export function AdminComponent() {
       return;
     }
 
+    const toastId = toast.loading('Deleting file...');
+
     try {
+      // Get current global folders first
       const globalFoldersRef = doc(db, 'folders', 'global');
       const globalFoldersSnap = await getDoc(globalFoldersRef);
       const currentFolders = globalFoldersSnap.exists() ? globalFoldersSnap.data().folders || [] : [];
-      
-      const folder = currentFolders.find((f: FolderType) => f.id === folderId);
-      const fileToDelete = folder?.files.find((f: MaterialFile) => f.id === fileId);
 
-      if (folder && fileToDelete) {
-        // Delete file from storage
-        const fileRef = ref(storage, `folders/${folderId}/${fileToDelete.name}`);
-        try {
-          await deleteObject(fileRef);
-        } catch (error) {
-          console.error('Error deleting file from storage:', error);
+      // Find folder and file recursively
+      const findFolderAndFile = (folders: FolderType[]): { folder: FolderType | null, file: MaterialFile | null } => {
+        for (const folder of folders) {
+          // Check current folder
+          if (folder.id === folderId) {
+            const file = folder.files?.find(f => f.id === fileId);
+            if (file) {
+              return { folder, file };
+            }
+          }
+          
+          // Check subfolders recursively
+          if (folder.subFolders?.length) {
+            const result = findFolderAndFile(folder.subFolders);
+            if (result.folder && result.file) {
+              return result;
+            }
+          }
         }
+        return { folder: null, file: null };
+      };
 
-        // Update folder files in Firestore and local state
-        const updatedFolders = currentFolders.map((f: FolderType) => {
-          if (f.id === folderId) {
+      const { folder, file } = findFolderAndFile(currentFolders);
+      
+      if (!folder || !file) {
+        throw new Error('Folder or file not found');
+      }
+
+      try {
+        // Delete file from storage using the URL instead of constructing the path
+        const fileUrl = new URL(file.url);
+        const storagePath = decodeURIComponent(fileUrl.pathname.split('/o/')[1].split('?')[0]);
+        const fileRef = ref(storage, storagePath);
+        await deleteObject(fileRef);
+      } catch (storageError) {
+        console.error('Storage deletion error:', storageError);
+        // Continue with Firestore update even if storage deletion fails
+      }
+
+      // Update folders state recursively
+      const updateFoldersRecursively = (folders: FolderType[]): FolderType[] => {
+        return folders.map(f => {
+          if (f.id === folder.id) {
             return {
               ...f,
               files: f.files.filter(file => file.id !== fileId)
             };
           }
+          if (f.subFolders?.length) {
+            return {
+              ...f,
+              subFolders: updateFoldersRecursively(f.subFolders)
+            };
+          }
           return f;
         });
+      };
 
-        await setDoc(globalFoldersRef, { folders: updatedFolders }, { merge: true });
-        setFolders(updatedFolders); // Update local state
-        toast.success('File deleted successfully');
-      }
+      const updatedFolders = updateFoldersRecursively(currentFolders);
+
+      // Update Firestore
+      await setDoc(globalFoldersRef, { folders: updatedFolders });
+      
+      // Update local state
+      setFolders(updatedFolders);
+      
+      toast.success('File deleted successfully');
     } catch (error) {
       console.error('Error deleting file:', error);
-      toast.error('Failed to delete file');
+      toast.error('Failed to delete file. Please try again.');
+    } finally {
+      toast.dismiss(toastId);
     }
   };
 
