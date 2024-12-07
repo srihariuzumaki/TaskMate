@@ -87,7 +87,7 @@ export function AdminComponent() {
 
     checkAdminAccess();
     loadData();
-  }, []);
+  }, [router]);
 
   const handleUpdateUser = async (userId: string, updates: Partial<User>) => {
     try {

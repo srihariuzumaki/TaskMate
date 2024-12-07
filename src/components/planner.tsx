@@ -170,7 +170,7 @@ export function PlannerComponent() {
       if (!currentUser) return;
 
       try {
-        await initializeUserData(currentUser.uid);
+        await initializeUserData(currentUser.uid, currentUser.email || '');
         const userData = await getUserData(currentUser.uid);
         if (userData) {
           setTasks(userData.tasks || []);
@@ -191,7 +191,7 @@ export function PlannerComponent() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [showAlert]);
 
   return (
     <div className="flex flex-col min-h-screen bg-[#E6F3F5]">

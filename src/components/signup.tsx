@@ -11,6 +11,7 @@ import { auth, db } from '@/firebase/config'
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, GithubAuthProvider } from 'firebase/auth'
 import { useAlert } from '@/hooks/useAlert'
 import { setDoc, doc, getDocs, collection, getDoc } from 'firebase/firestore'
+import { initializeUserData } from '@/firebase/firestore'
 
 export function SignupComponent() {
   const [email, setEmail] = useState('');
@@ -219,8 +220,5 @@ export function SignupComponent() {
       </Card>
     </div>
   )
-}
-function initializeUserData(uid: string, arg1: string) {
-  throw new Error('Function not implemented.')
 }
 
