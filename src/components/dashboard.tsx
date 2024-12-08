@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { auth } from '@/firebase/config'
 import { User } from 'firebase/auth'
-import { FileText, Book, Plus, Upload, Calendar, Play, Pause, RefreshCw, MessageSquare, Loader2, FolderIcon, ChevronRight, ArrowLeft } from 'lucide-react'
+import { FileText, Book, Plus, Upload, Calendar, Play, Pause, RefreshCw, MessageSquare, Loader2, FolderIcon, ChevronRight, ArrowLeft, MessageCircle } from 'lucide-react'
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { initializeUserData, getUserData, updateUserTasks, updateUserAssignments, updateUserExams, updateUserRecords, getUserFolders, updateUserFolders } from '@/firebase/firestore'
@@ -658,10 +658,20 @@ export function DashboardComponent() {
     <div className="flex flex-col min-h-screen bg-[#E6F3F5]">
       <header className="bg-[#A0D2DB] p-4 flex justify-between items-center">
         <h1 className="text-2xl font-bold text-[#1A5F7A]">Taskmate</h1>
-        <Button variant="ghost" className="rounded-full" onClick={() => router.push('/profile')}>
-          <span className="sr-only">User menu</span>
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#1A5F7A]"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-        </Button>
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.push('/contact')}
+            className="relative"
+          >
+            <MessageCircle className="h-5 w-5 text-[#1A5F7A]" />
+          </Button>
+          <Button variant="ghost" className="rounded-full" onClick={() => router.push('/profile')}>
+            <span className="sr-only">User menu</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#1A5F7A]"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+          </Button>
+        </div>
       </header>
 
       <main className="flex-1 p-4 md:p-6">

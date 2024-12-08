@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { auth, db, storage } from '@/firebase/config';
-import { collection, query, getDocs, doc, updateDoc, deleteDoc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, query, getDocs, doc, updateDoc, deleteDoc, getDoc, setDoc, orderBy, serverTimestamp } from 'firebase/firestore';
 import { ref, listAll, deleteObject } from 'firebase/storage';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,12 +24,24 @@ interface User {
   role?: string;
 }
 
+interface ContactRequest {
+  id: string;
+  userId: string;
+  userEmail: string;
+  subject: string;
+  message: string;
+  requestType: string;
+  status: string;
+  createdAt: any;
+}
+
 export function AdminComponent() {
   const [users, setUsers] = useState<User[]>([]);
   const [folders, setFolders] = useState<FolderType[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [contactRequests, setContactRequests] = useState<ContactRequest[]>([]);
   const router = useRouter();
 
   useEffect(() => {
@@ -76,6 +88,21 @@ export function AdminComponent() {
         // Combine all folders and set state
         setFolders([...allUserFolders, ...globalFolders]);
         console.log('Loaded folders:', [...allUserFolders, ...globalFolders]); // Debug log
+
+        const loadContactRequests = async () => {
+          const requestsQuery = query(
+            collection(db, 'contactRequests'),
+            orderBy('createdAt', 'desc')
+          );
+          const snapshot = await getDocs(requestsQuery);
+          const requests = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          } as ContactRequest));
+          setContactRequests(requests);
+        };
+
+        loadContactRequests();
 
       } catch (error) {
         console.error('Error loading admin data:', error);
@@ -354,6 +381,26 @@ export function AdminComponent() {
     </div>
   );
 
+  const handleContactRequest = async (requestId: string, status: 'approved' | 'rejected') => {
+    try {
+      await updateDoc(doc(db, 'contactRequests', requestId), {
+        status,
+        updatedAt: serverTimestamp(),
+      });
+      
+      setContactRequests(requests =>
+        requests.map(request =>
+          request.id === requestId ? { ...request, status } : request
+        )
+      );
+      
+      toast.success(`Request ${status} successfully`);
+    } catch (error) {
+      console.error('Error updating request:', error);
+      toast.error('Failed to update request');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -373,6 +420,7 @@ export function AdminComponent() {
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="folders">Folders</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
+          <TabsTrigger value="requests">Contact Requests</TabsTrigger>
         </TabsList>
 
         <TabsContent value="users">
@@ -501,6 +549,56 @@ export function AdminComponent() {
                   </div>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="requests">
+          <Card>
+            <CardHeader>
+              <CardTitle>Contact Requests</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[500px]">
+                {contactRequests.map((request) => (
+                  <div key={request.id} className="border-b p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <h3 className="font-medium">{request.subject}</h3>
+                        <p className="text-sm text-gray-500">
+                          From: {request.userEmail} • Type: {request.requestType}
+                        </p>
+                      </div>
+                      <span className={`px-2 py-1 rounded text-sm ${
+                        request.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        request.status === 'approved' ? 'bg-green-100 text-green-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {request.status}
+                      </span>
+                    </div>
+                    <p className="text-sm mb-4">{request.message}</p>
+                    {request.status === 'pending' && (
+                      <div className="flex space-x-2">
+                        <Button
+                          size="sm"
+                          onClick={() => handleContactRequest(request.id, 'approved')}
+                          className="bg-green-500 hover:bg-green-600"
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleContactRequest(request.id, 'rejected')}
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </ScrollArea>
             </CardContent>
           </Card>
         </TabsContent>

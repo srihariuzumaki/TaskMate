@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { auth } from '@/firebase/config'
 import { initializeUserData, getUserData, updateUserTasks, updateUserAssignments, updateUserExams, updateUserRecords } from '@/firebase/firestore'
 import { useAlert } from '@/hooks/useAlert'
+import { requestNotificationPermission, scheduleTaskReminder, scheduleDueDateReminder } from '@/utils/notifications'
 
 
 interface Record {
@@ -53,6 +54,7 @@ export function PlannerComponent() {
     try {
       await updateUserTasks(currentUser.uid, newTasks);
       setTasks(newTasks);
+      scheduleTaskReminder(newTask);
     } catch (error) {
       console.error('Error adding task:', error);
       showAlert('Failed to add task. Please try again.');
@@ -63,10 +65,12 @@ export function PlannerComponent() {
     const currentUser = auth.currentUser;
     if (!currentUser) return;
 
-    const newAssignments = [...assignments, { name, date }];
+    const newAssignment = { name, date };
+    const newAssignments = [...assignments, newAssignment];
     try {
       await updateUserAssignments(currentUser.uid, newAssignments);
       setAssignments(newAssignments);
+      scheduleDueDateReminder(newAssignment, 'Assignment');
     } catch (error) {
       console.error('Error adding assignment:', error);
       showAlert('Failed to add assignment. Please try again.');
@@ -77,10 +81,12 @@ export function PlannerComponent() {
     const currentUser = auth.currentUser;
     if (!currentUser) return;
 
-    const newExams = [...exams, { name, date }];
+    const newExam = { name, date };
+    const newExams = [...exams, newExam];
     try {
       await updateUserExams(currentUser.uid, newExams);
       setExams(newExams);
+      scheduleDueDateReminder(newExam, 'Exam');
     } catch (error) {
       console.error('Error adding exam:', error);
       showAlert('Failed to add exam. Please try again.');
@@ -192,6 +198,14 @@ export function PlannerComponent() {
 
     return () => unsubscribe();
   }, [showAlert]);
+
+  useEffect(() => {
+    const setupNotifications = async () => {
+      await requestNotificationPermission();
+    };
+    
+    setupNotifications();
+  }, []);
 
   return (
     <div className="flex flex-col min-h-screen bg-[#E6F3F5]">

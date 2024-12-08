@@ -14,6 +14,7 @@ import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
+import { requestNotificationPermission } from '@/utils/notifications';
 
 export function ProfileComponent() {
   const router = useRouter();
@@ -118,6 +119,23 @@ export function ProfileComponent() {
           </CardContent>
         </Card>
 
+        <Card className="bg-white border-[#A0D2DB]">
+          <CardHeader>
+            <CardTitle className="text-[#1A5F7A]">Contact Admin</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-[#57A7B3] mb-4">
+              Need help? Contact the admin for file updates, deletions, or general feedback.
+            </p>
+            <Button 
+              className="w-full bg-[#57A7B3] hover:bg-[#1A5F7A]"
+              onClick={() => router.push('/contact')}
+            >
+              Contact Admin
+            </Button>
+          </CardContent>
+        </Card>
+
         <Dialog 
           open={isEditDialogOpen} 
           onOpenChange={(open) => {
@@ -161,6 +179,26 @@ export function ProfileComponent() {
             </div>
           </DialogContent>
         </Dialog>
+
+        <div className="space-y-2">
+          <Label htmlFor="notifications">Notifications</Label>
+          <Button
+            onClick={async () => {
+              const granted = await requestNotificationPermission();
+              if (granted) {
+                toast.success('Notifications enabled successfully');
+              } else {
+                toast.error('Please enable notifications in your browser settings');
+              }
+            }}
+            className="w-full"
+          >
+            Enable Notifications
+          </Button>
+          <p className="text-sm text-[#57A7B3]">
+            Get reminders for upcoming tasks and due dates
+          </p>
+        </div>
       </main>
     </div>
   );
