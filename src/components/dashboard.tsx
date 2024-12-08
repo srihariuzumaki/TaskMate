@@ -19,6 +19,9 @@ import { Folder, MaterialFile } from '@/types/materials'
 import { uploadFile } from '@/firebase/storage'
 import { toast } from 'sonner'
 import { findFolder } from '@/utils/folderUtils'
+import { NotificationCenter } from '@/components/NotificationCenter'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import Image from 'next/image'
 
 type TimerStatus = 'work' | 'break';
 type TimerState = 'running' | 'paused';
@@ -655,281 +658,323 @@ export function DashboardComponent() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#E6F3F5]">
-      <header className="bg-[#A0D2DB] p-4 flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-[#1A5F7A]">Taskmate</h1>
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.push('/contact')}
-            className="relative"
-          >
-            <MessageCircle className="h-5 w-5 text-[#1A5F7A]" />
-          </Button>
-          <Button variant="ghost" className="rounded-full" onClick={() => router.push('/profile')}>
-            <span className="sr-only">User menu</span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#1A5F7A]"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-          </Button>
-        </div>
-      </header>
+    <TooltipProvider>
+      <div className="flex flex-col min-h-screen bg-[#E6F3F5]">
+        <header className="bg-[#A0D2DB] h-16 p-4 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <div className="w-[32px] h-[32px] flex-shrink-0 relative">
+              <Image 
+                src="/logo.png"
+                alt="Taskmate Logo"
+                width={150}
+                height={150}
+                className="object-contain absolute -top-[1.25rem]  -left-[1.25rem] max-w-[220%]"
+              />
+            </div>
+            <h1 className="text-2xl font-bold text-[#1A5F7A]">Taskmate</h1>
+          </div>
+          <div className="flex items-center gap-4">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <NotificationCenter />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Notifications</p>
+              </TooltipContent>
+            </Tooltip>
 
-      <main className="flex-1 p-4 md:p-6">
-        <Tabs defaultValue="dashboard" className="space-y-4">
-          <TabsList className="bg-white rounded-full p-1">
-            <TabsTrigger value="dashboard" className="rounded-full">Dashboard</TabsTrigger>
-            <TabsTrigger value="techniques" className="rounded-full">Study Techniques</TabsTrigger>
-            <TabsTrigger value="materials" className="rounded-full">Materials</TabsTrigger>
-          </TabsList>
-          <TabsContent value="dashboard">
-            <div className="space-y-4">
-              {renderUpcomingTasks()}
-              {renderRecentMaterials()}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => router.push('/contact')}
+                  className="relative"
+                >
+                  <MessageCircle className="h-5 w-5 text-[#1A5F7A]" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Contact Admin</p>
+              </TooltipContent>
+            </Tooltip>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-[#1A5F7A]">Quick Actions</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button className="flex-1 bg-[#57A7B3] hover:bg-[#1A5F7A]">
-                          <Plus className="mr-2 h-4 w-4" />
-                          Add Task
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Add New Task</DialogTitle>
-                        </DialogHeader>
-                        <AddTaskForm onAdd={addTask} onClose={closeDialog} />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" className="rounded-full" onClick={() => router.push('/profile')}>
+                  <span className="sr-only">User menu</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#1A5F7A]">
+                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                  </svg>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Profile Settings</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </header>
+
+        <main className="flex-1 p-4 md:p-6">
+          <Tabs defaultValue="dashboard" className="space-y-4">
+            <TabsList className="bg-white rounded-full p-1">
+              <TabsTrigger value="dashboard" className="rounded-full">Dashboard</TabsTrigger>
+              <TabsTrigger value="techniques" className="rounded-full">Study Techniques</TabsTrigger>
+              <TabsTrigger value="materials" className="rounded-full">Materials</TabsTrigger>
+            </TabsList>
+            <TabsContent value="dashboard">
+              <div className="space-y-4">
+                {renderUpcomingTasks()}
+                {renderRecentMaterials()}
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-[#1A5F7A]">Quick Actions</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
+                      <Dialog>
                         <DialogTrigger asChild>
-                          <button ref={dialogCloseRef} className="hidden">Close</button>
+                          <Button className="flex-1 bg-[#57A7B3] hover:bg-[#1A5F7A]">
+                            <Plus className="mr-2 h-4 w-4" />
+                            Add Task
+                          </Button>
                         </DialogTrigger>
-                      </DialogContent>
-                    </Dialog>
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" className="flex-1">
-                          <Calendar className="mr-2 h-4 w-4" />
-                          Add Due Date
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Add Due Date</DialogTitle>
-                        </DialogHeader>
-                        <AddDueDateForm 
-                          onAddAssignment={addAssignment}
-                          onAddExam={addExam}
-                          onAddRecord={addRecord}
-                          onClose={closeDialog}
-                        />
-                      </DialogContent>
-                    </Dialog>
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" className="flex-1">
-                          <Upload className="mr-2 h-4 w-4" />
-                          Upload Material
-                        </Button>
-                      </DialogTrigger>
-                      <UploadDialog onClose={() => {
-                        const dialogTrigger = document.querySelector('[role="dialog"]');
-                        if (dialogTrigger) {
-                          (dialogTrigger as HTMLElement).click();
-                        }
-                      }} />
-                    </Dialog>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-          <TabsContent value="techniques">
-            <div className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-[#1A5F7A]">Pomodoro Timer</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col items-center space-y-4">
-                    <div className="text-6xl font-bold text-[#1A5F7A]">
-                      {formatTime(timeLeft)}
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Add New Task</DialogTitle>
+                          </DialogHeader>
+                          <AddTaskForm onAdd={addTask} onClose={closeDialog} />
+                          <DialogTrigger asChild>
+                            <button ref={dialogCloseRef} className="hidden">Close</button>
+                          </DialogTrigger>
+                        </DialogContent>
+                      </Dialog>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" className="flex-1">
+                            <Calendar className="mr-2 h-4 w-4" />
+                            Add Due Date
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Add Due Date</DialogTitle>
+                          </DialogHeader>
+                          <AddDueDateForm 
+                            onAddAssignment={addAssignment}
+                            onAddExam={addExam}
+                            onAddRecord={addRecord}
+                            onClose={closeDialog}
+                          />
+                        </DialogContent>
+                      </Dialog>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" className="flex-1">
+                            <Upload className="mr-2 h-4 w-4" />
+                            Upload Material
+                          </Button>
+                        </DialogTrigger>
+                        <UploadDialog onClose={() => {
+                          const dialogTrigger = document.querySelector('[role="dialog"]');
+                          if (dialogTrigger) {
+                            (dialogTrigger as HTMLElement).click();
+                          }
+                        }} />
+                      </Dialog>
                     </div>
-                    <div className="flex space-x-4">
-                      <Button className="bg-[#57A7B3] hover:bg-[#1A5F7A]" onClick={toggleTimer}>
-                        {timerState === 'paused' ? <Play className="mr-2 h-4 w-4" /> : <Pause className="mr-2 h-4 w-4" />}
-                      </Button>
-                      <Button variant="outline" onClick={resetTimer}>
-                        <RefreshCw className="mr-2 h-4 w-4" />
-                        Reset
-                      </Button>
-                    </div>
-                    <div className="text-sm text-[#57A7B3]">
-                      {timerStatus === 'work' ? 'Work for 25 minutes, then take a 5-minute break' : 'Take a 5-minute break, then work for 25 minutes'}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-[#1A5F7A]">Study Techniques</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-6">
-                    <div className="space-y-2">
-                      <h3 className="font-semibold text-[#1A5F7A]">1. Active Recall</h3>
-                      <p className="text-[#57A7B3]">Test yourself on what you&apos;ve learned without referring to your notes. This helps strengthen memory and identifies knowledge gaps.</p>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <h3 className="font-semibold text-[#1A5F7A]">2. Spaced Repetition</h3>
-                      <p className="text-[#57A7B3]">Review material at increasing intervals to improve long-term retention. Start with daily reviews, then weekly, then monthly.</p>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <h3 className="font-semibold text-[#1A5F7A]">3. Mind Mapping</h3>
-                      <p className="text-[#57A7B3]">Create visual representations of concepts and their relationships. Great for understanding complex topics and their connections.</p>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <h3 className="font-semibold text-[#1A5F7A]">4. Feynman Technique</h3>
-                      <p className="text-[#57A7B3]">Explain concepts in simple terms as if teaching someone else. This helps identify areas where your understanding needs improvement.</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-          <TabsContent value="materials">
-            <div className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-[#1A5F7A]">Upload Learning Materials</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="border-2 border-dashed border-[#57A7B3] rounded-lg p-8 text-center">
-                      <Input
-                        type="file"
-                        className="hidden"
-                        id="file-upload"
-                        onChange={handleFileUpload}
-                        accept=".pdf,.doc,.docx,.txt"
-                      />
-                      <label
-                        htmlFor="file-upload"
-                        className="cursor-pointer flex flex-col items-center"
-                      >
-                        <Upload className="h-12 w-12 text-[#57A7B3] mb-4" />
-                        <span className="text-[#1A5F7A] font-medium">
-                          Click to upload or drag and drop
-                        </span>
-                        <span className="text-sm text-[#57A7B3]">
-                          PDF, DOC, DOCX, TXT (max. 10MB)
-                        </span>
-                      </label>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="md:col-span-1">
-                  <CardHeader>
-                    <CardTitle className="text-[#1A5F7A]">Uploaded Resources</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      {uploadedResources.map(resource => (
-                        <div
-                          key={resource.id}
-                          className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                            selectedResource?.id === resource.id
-                              ? 'bg-[#A0D2DB] border-[#57A7B3]'
-                              : 'bg-white hover:bg-[#E6F3F5]'
-                          }`}
-                          onClick={() => setSelectedResource(resource)}
-                        >
-                          <div className="flex items-center">
-                            <FileText className="h-4 w-4 mr-2 text-[#57A7B3]" />
-                            <div>
-                              <p className="font-medium text-[#1A5F7A]">{resource.name}</p>
-                              <p className="text-xs text-[#57A7B3]">
-                                Uploaded on {resource.dateUploaded}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                      {uploadedResources.length === 0 && (
-                        <p className="text-[#57A7B3] text-center py-4">
-                          No resources uploaded yet
-                        </p>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="md:col-span-2">
-                  <CardHeader>
-                    <CardTitle className="text-[#1A5F7A]">
-                      {selectedResource ? 'AI Summary & Q&A' : 'Select a Resource'}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {selectedResource ? (
-                      <div className="space-y-4">
-                        <div className="p-4 bg-[#E6F3F5] rounded-lg">
-                          <h3 className="font-medium text-[#1A5F7A] mb-2">Summary</h3>
-                          <p className="text-[#57A7B3]">{selectedResource.summary}</p>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <h3 className="font-medium text-[#1A5F7A]">Ask a Question</h3>
-                          <div className="flex space-x-2">
-                            <Textarea
-                              placeholder="Ask anything about this resource..."
-                              value={question}
-                              onChange={(e) => setQuestion(e.target.value)}
-                              className="flex-1"
-                            />
-                            <Button
-                              className="bg-[#57A7B3] hover:bg-[#1A5F7A]"
-                              onClick={handleAskQuestion}
-                              disabled={isLoading}
-                            >
-                              {isLoading ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <MessageSquare className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-
-                        {aiResponse && (
-                          <div className="p-4 bg-white border rounded-lg">
-                            <h3 className="font-medium text-[#1A5F7A] mb-2">AI Response</h3>
-                            <p className="text-[#57A7B3]">{aiResponse}</p>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-[#57A7B3]">
-                        Select a resource from the left to view its summary and ask questions
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
               </div>
-            </div>
-          </TabsContent>
-        </Tabs>
-      </main>
-    </div>
+            </TabsContent>
+            <TabsContent value="techniques">
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-[#1A5F7A]">Pomodoro Timer</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-col items-center space-y-4">
+                      <div className="text-6xl font-bold text-[#1A5F7A]">
+                        {formatTime(timeLeft)}
+                      </div>
+                      <div className="flex space-x-4">
+                        <Button className="bg-[#57A7B3] hover:bg-[#1A5F7A]" onClick={toggleTimer}>
+                          {timerState === 'paused' ? <Play className="mr-2 h-4 w-4" /> : <Pause className="mr-2 h-4 w-4" />}
+                        </Button>
+                        <Button variant="outline" onClick={resetTimer}>
+                          <RefreshCw className="mr-2 h-4 w-4" />
+                          Reset
+                        </Button>
+                      </div>
+                      <div className="text-sm text-[#57A7B3]">
+                        {timerStatus === 'work' ? 'Work for 25 minutes, then take a 5-minute break' : 'Take a 5-minute break, then work for 25 minutes'}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-[#1A5F7A]">Study Techniques</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-6">
+                      <div className="space-y-2">
+                        <h3 className="font-semibold text-[#1A5F7A]">1. Active Recall</h3>
+                        <p className="text-[#57A7B3]">Test yourself on what you&apos;ve learned without referring to your notes. This helps strengthen memory and identifies knowledge gaps.</p>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <h3 className="font-semibold text-[#1A5F7A]">2. Spaced Repetition</h3>
+                        <p className="text-[#57A7B3]">Review material at increasing intervals to improve long-term retention. Start with daily reviews, then weekly, then monthly.</p>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <h3 className="font-semibold text-[#1A5F7A]">3. Mind Mapping</h3>
+                        <p className="text-[#57A7B3]">Create visual representations of concepts and their relationships. Great for understanding complex topics and their connections.</p>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <h3 className="font-semibold text-[#1A5F7A]">4. Feynman Technique</h3>
+                        <p className="text-[#57A7B3]">Explain concepts in simple terms as if teaching someone else. This helps identify areas where your understanding needs improvement.</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+            <TabsContent value="materials">
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-[#1A5F7A]">Upload Learning Materials</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="border-2 border-dashed border-[#57A7B3] rounded-lg p-8 text-center">
+                        <Input
+                          type="file"
+                          className="hidden"
+                          id="file-upload"
+                          onChange={handleFileUpload}
+                          accept=".pdf,.doc,.docx,.txt"
+                        />
+                        <label
+                          htmlFor="file-upload"
+                          className="cursor-pointer flex flex-col items-center"
+                        >
+                          <Upload className="h-12 w-12 text-[#57A7B3] mb-4" />
+                          <span className="text-[#1A5F7A] font-medium">
+                            Click to upload or drag and drop
+                          </span>
+                          <span className="text-sm text-[#57A7B3]">
+                            PDF, DOC, DOCX, TXT (max. 10MB)
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card className="md:col-span-1">
+                    <CardHeader>
+                      <CardTitle className="text-[#1A5F7A]">Uploaded Resources</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {uploadedResources.map(resource => (
+                          <div
+                            key={resource.id}
+                            className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                              selectedResource?.id === resource.id
+                                ? 'bg-[#A0D2DB] border-[#57A7B3]'
+                                : 'bg-white hover:bg-[#E6F3F5]'
+                            }`}
+                            onClick={() => setSelectedResource(resource)}
+                          >
+                            <div className="flex items-center">
+                              <FileText className="h-4 w-4 mr-2 text-[#57A7B3]" />
+                              <div>
+                                <p className="font-medium text-[#1A5F7A]">{resource.name}</p>
+                                <p className="text-xs text-[#57A7B3]">
+                                  Uploaded on {resource.dateUploaded}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {uploadedResources.length === 0 && (
+                          <p className="text-[#57A7B3] text-center py-4">
+                            No resources uploaded yet
+                          </p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="md:col-span-2">
+                    <CardHeader>
+                      <CardTitle className="text-[#1A5F7A]">
+                        {selectedResource ? 'AI Summary & Q&A' : 'Select a Resource'}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {selectedResource ? (
+                        <div className="space-y-4">
+                          <div className="p-4 bg-[#E6F3F5] rounded-lg">
+                            <h3 className="font-medium text-[#1A5F7A] mb-2">Summary</h3>
+                            <p className="text-[#57A7B3]">{selectedResource.summary}</p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <h3 className="font-medium text-[#1A5F7A]">Ask a Question</h3>
+                            <div className="flex space-x-2">
+                              <Textarea
+                                placeholder="Ask anything about this resource..."
+                                value={question}
+                                onChange={(e) => setQuestion(e.target.value)}
+                                className="flex-1"
+                              />
+                              <Button
+                                className="bg-[#57A7B3] hover:bg-[#1A5F7A]"
+                                onClick={handleAskQuestion}
+                                disabled={isLoading}
+                              >
+                                {isLoading ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <MessageSquare className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+
+                          {aiResponse && (
+                            <div className="p-4 bg-white border rounded-lg">
+                              <h3 className="font-medium text-[#1A5F7A] mb-2">AI Response</h3>
+                              <p className="text-[#57A7B3]">{aiResponse}</p>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-[#57A7B3]">
+                          Select a resource from the left to view its summary and ask questions
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </main>
+      </div>
+    </TooltipProvider>
   )
 }

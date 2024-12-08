@@ -54,7 +54,7 @@ export function PlannerComponent() {
     try {
       await updateUserTasks(currentUser.uid, newTasks);
       setTasks(newTasks);
-      scheduleTaskReminder(newTask);
+      await scheduleTaskReminder(currentUser.uid, newTask);
     } catch (error) {
       console.error('Error adding task:', error);
       showAlert('Failed to add task. Please try again.');
@@ -70,7 +70,7 @@ export function PlannerComponent() {
     try {
       await updateUserAssignments(currentUser.uid, newAssignments);
       setAssignments(newAssignments);
-      scheduleDueDateReminder(newAssignment, 'Assignment');
+      await scheduleDueDateReminder(currentUser.uid, newAssignment, 'Assignment');
     } catch (error) {
       console.error('Error adding assignment:', error);
       showAlert('Failed to add assignment. Please try again.');
@@ -86,7 +86,7 @@ export function PlannerComponent() {
     try {
       await updateUserExams(currentUser.uid, newExams);
       setExams(newExams);
-      scheduleDueDateReminder(newExam, 'Exam');
+      await scheduleDueDateReminder(currentUser.uid, newExam, 'Exam');
     } catch (error) {
       console.error('Error adding exam:', error);
       showAlert('Failed to add exam. Please try again.');
