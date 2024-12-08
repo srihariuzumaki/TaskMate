@@ -27,7 +27,7 @@ export function SignupComponent() {
     e.preventDefault();
     
     if (password !== confirmPassword) {
-      showAlert("Passwords do not match");
+      showAlert('Passwords do not match');
       return;
     }
 
@@ -35,11 +35,11 @@ export function SignupComponent() {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const { user } = userCredential;
       
-      // First, create the user document
       await setDoc(doc(db, 'users', user.uid), {
         email: user.email,
         username,
         role: 'user',
+        isNewUser: true,
         tasks: [],
         assignments: [],
         exams: [],
@@ -47,18 +47,11 @@ export function SignupComponent() {
         folders: []
       });
 
-      // Then check if it's the first user and update role if needed
-      const usersSnapshot = await getDocs(collection(db, 'users'));
-      if (usersSnapshot.size === 1) {
-        await setDoc(doc(db, 'users', user.uid), { role: 'admin' }, { merge: true });
-      }
-
-      router.push('/dashboard');
+      router.push('/profile');
     } catch (error) {
+      console.error('Signup error:', error);
       if (error instanceof Error) {
         showAlert(error.message);
-      } else {
-        showAlert("An error occurred during signup");
       }
     }
   };
@@ -69,28 +62,23 @@ export function SignupComponent() {
       const result = await signInWithPopup(auth, provider);
       const { user } = result;
       
-      // Check if user already exists
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (!userDoc.exists()) {
         await setDoc(doc(db, 'users', user.uid), {
           email: user.email,
           username: user.email?.split('@')[0] || '',
           role: 'user',
+          isNewUser: true,
           tasks: [],
           assignments: [],
           exams: [],
           records: [],
           folders: []
         });
-
-        // Check if first user
-        const usersSnapshot = await getDocs(collection(db, 'users'));
-        if (usersSnapshot.size === 1) {
-          await setDoc(doc(db, 'users', user.uid), { role: 'admin' }, { merge: true });
-        }
+        router.push('/profile');
+      } else {
+        router.push('/dashboard');
       }
-      
-      router.push('/dashboard');
     } catch (error) {
       if (error instanceof Error) {
         showAlert(error.message);

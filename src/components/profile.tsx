@@ -13,6 +13,7 @@ import { auth, db } from '@/firebase/config';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { toast } from 'sonner';
 
 export function ProfileComponent() {
   const router = useRouter();
@@ -38,6 +39,11 @@ export function ProfileComponent() {
           setYear(data.year || '');
           setSemester(data.semester || '');
           setBranch(data.branch || '');
+
+          // If it's a new user, automatically open the edit dialog
+          if (data.isNewUser) {
+            setEditDialogOpen(true);
+          }
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
@@ -57,20 +63,32 @@ export function ProfileComponent() {
   };
 
   const handleEditProfile = async () => {
-    const updatedData = {
-      username: name,
-      usn: usn.toUpperCase(),
-      year,
-      semester,
-      branch,
-    };
-    setUserData(updatedData);
-    setEditDialogOpen(false);
+    if (!name || !usn || !year || !semester || !branch) {
+      toast.error('Please fill in all fields');
+      return;
+    }
 
-    // Save updated data to Firestore
-    const user = auth.currentUser;
-    if (user) {
-      await setDoc(doc(db, 'users', user.uid), updatedData, { merge: true });
+    try {
+      const updatedData = {
+        username: name,
+        usn: usn.toUpperCase(),
+        year,
+        semester,
+        branch,
+        isNewUser: false
+      };
+      setUserData(updatedData);
+      setEditDialogOpen(false);
+
+      const user = auth.currentUser;
+      if (user) {
+        await setDoc(doc(db, 'users', user.uid), updatedData, { merge: true });
+        toast.success('Profile updated successfully');
+        router.push('/dashboard');
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast.error('Failed to update profile');
     }
   };
 
@@ -100,7 +118,14 @@ export function ProfileComponent() {
           </CardContent>
         </Card>
 
-        <Dialog open={isEditDialogOpen} onOpenChange={setEditDialogOpen}>
+        <Dialog 
+          open={isEditDialogOpen} 
+          onOpenChange={(open) => {
+            if (!userData?.isNewUser) {
+              setEditDialogOpen(open);
+            }
+          }}
+        >
           
           <DialogContent>
             <DialogHeader>
