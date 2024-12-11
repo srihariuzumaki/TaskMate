@@ -489,18 +489,33 @@ export function DashboardComponent() {
     if (!file) return;
 
     setIsLoading(true);
-    // TODO: Implement file upload to your backend/storage
-    // TODO: Implement AI summarization
-    // For now, we'll mock the response
-    const mockResource: UploadedResource = {
-      id: Date.now().toString(),
-      name: file.name,
-      summary: "AI-generated summary will appear here...",
-      dateUploaded: new Date().toLocaleDateString()
-    };
+    const toastId = toast.loading('Uploading file...');
 
-    setUploadedResources(prev => [...prev, mockResource]);
-    setIsLoading(false);
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error('No user logged in');
+      }
+
+      // Generate a unique ID for the file
+      const fileId = Date.now().toString();
+      
+      // Upload file to storage
+      const fileUrl = await uploadFile(file, `ai-analysis/${currentUser.uid}/${fileId}`);
+      
+      // TODO: Store file metadata in Firestore if needed
+      
+      // Use router.push for navigation
+      router.push(`/analysis?fileId=${fileId}`);
+      
+      toast.success('File uploaded successfully');
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      toast.error('Failed to upload file. Please try again.');
+    } finally {
+      setIsLoading(false);
+      toast.dismiss(toastId);
+    }
   };
 
   const handleAskQuestion = async () => {
@@ -723,7 +738,7 @@ export function DashboardComponent() {
             <TabsList className="bg-white rounded-full p-1">
               <TabsTrigger value="dashboard" className="rounded-full">Dashboard</TabsTrigger>
               <TabsTrigger value="techniques" className="rounded-full">Study Techniques</TabsTrigger>
-              <TabsTrigger value="materials" className="rounded-full">Materials</TabsTrigger>
+              <TabsTrigger value="ai-summary" className="rounded-full">AI Summary</TabsTrigger>
             </TabsList>
             <TabsContent value="dashboard">
               <div className="space-y-4">
@@ -848,128 +863,48 @@ export function DashboardComponent() {
                 </Card>
               </div>
             </TabsContent>
-            <TabsContent value="materials">
+            <TabsContent value="ai-summary">
               <div className="space-y-4">
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-[#1A5F7A]">Upload Learning Materials</CardTitle>
+                    <CardTitle className="text-[#1A5F7A]">AI Document Analysis</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      <div className="border-2 border-dashed border-[#57A7B3] rounded-lg p-8 text-center">
+                      <div className="border-2 border-dashed border-[#57A7B3] rounded-lg p-12 text-center bg-white">
                         <Input
                           type="file"
                           className="hidden"
                           id="file-upload"
                           onChange={handleFileUpload}
-                          accept=".pdf,.doc,.docx,.txt"
+                          accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg"
                         />
                         <label
                           htmlFor="file-upload"
                           className="cursor-pointer flex flex-col items-center"
                         >
-                          <Upload className="h-12 w-12 text-[#57A7B3] mb-4" />
-                          <span className="text-[#1A5F7A] font-medium">
-                            Click to upload or drag and drop
+                          <div className="mb-6">
+                            <Upload className="h-16 w-16 text-[#57A7B3]" />
+                          </div>
+                          <span className="text-xl font-medium text-[#1A5F7A] mb-2">
+                            Select files
                           </span>
-                          <span className="text-sm text-[#57A7B3]">
-                            PDF, DOC, DOCX, TXT (max. 10MB)
-                          </span>
+                          <p className="text-[#57A7B3] mb-4">
+                            Add PDF, image, Word, Excel, and PowerPoint files
+                          </p>
+                          <div className="flex gap-2 flex-wrap justify-center">
+                            <span className="px-2 py-1 bg-red-100 text-red-800 rounded">PDF</span>
+                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">DOC</span>
+                            <span className="px-2 py-1 bg-green-100 text-green-800 rounded">XLS</span>
+                            <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded">PPT</span>
+                            <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded">PNG</span>
+                            <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded">JPG</span>
+                          </div>
                         </label>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Card className="md:col-span-1">
-                    <CardHeader>
-                      <CardTitle className="text-[#1A5F7A]">Uploaded Resources</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        {uploadedResources.map(resource => (
-                          <div
-                            key={resource.id}
-                            className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                              selectedResource?.id === resource.id
-                                ? 'bg-[#A0D2DB] border-[#57A7B3]'
-                                : 'bg-white hover:bg-[#E6F3F5]'
-                            }`}
-                            onClick={() => setSelectedResource(resource)}
-                          >
-                            <div className="flex items-center">
-                              <FileText className="h-4 w-4 mr-2 text-[#57A7B3]" />
-                              <div>
-                                <p className="font-medium text-[#1A5F7A]">{resource.name}</p>
-                                <p className="text-xs text-[#57A7B3]">
-                                  Uploaded on {resource.dateUploaded}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                        {uploadedResources.length === 0 && (
-                          <p className="text-[#57A7B3] text-center py-4">
-                            No resources uploaded yet
-                          </p>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="md:col-span-2">
-                    <CardHeader>
-                      <CardTitle className="text-[#1A5F7A]">
-                        {selectedResource ? 'AI Summary & Q&A' : 'Select a Resource'}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {selectedResource ? (
-                        <div className="space-y-4">
-                          <div className="p-4 bg-[#E6F3F5] rounded-lg">
-                            <h3 className="font-medium text-[#1A5F7A] mb-2">Summary</h3>
-                            <p className="text-[#57A7B3]">{selectedResource.summary}</p>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <h3 className="font-medium text-[#1A5F7A]">Ask a Question</h3>
-                            <div className="flex space-x-2">
-                              <Textarea
-                                placeholder="Ask anything about this resource..."
-                                value={question}
-                                onChange={(e) => setQuestion(e.target.value)}
-                                className="flex-1"
-                              />
-                              <Button
-                                className="bg-[#57A7B3] hover:bg-[#1A5F7A]"
-                                onClick={handleAskQuestion}
-                                disabled={isLoading}
-                              >
-                                {isLoading ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <MessageSquare className="h-4 w-4" />
-                                )}
-                              </Button>
-                            </div>
-                          </div>
-
-                          {aiResponse && (
-                            <div className="p-4 bg-white border rounded-lg">
-                              <h3 className="font-medium text-[#1A5F7A] mb-2">AI Response</h3>
-                              <p className="text-[#57A7B3]">{aiResponse}</p>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="text-center py-8 text-[#57A7B3]">
-                          Select a resource from the left to view its summary and ask questions
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </div>
               </div>
             </TabsContent>
           </Tabs>
